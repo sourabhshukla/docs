@@ -1,0 +1,136 @@
+---
+title: "Create Meta Ad Creative"
+openapi: "POST /meta-ads/create-meta-ad-creative"
+---
+
+## Functionality Overview
+
+This route creates a new Meta Ad Creative for a given assistant within a specified ad account.
+
+### 1. Extracting Data:
+
+- **User Information**: The `clientId` is extracted from `req.user` or `req.body`.
+- **Request Body**: The following fields are extracted from `req.body`:
+  - `fileUrl`: The URL of the media file.
+  - `name`: The name of the ad creative.
+  - `assistantId`: The ID of the assistant initiating the request.
+  - `adAccountId`: The ID of the ad account.
+  - `message`: The message for the ad creative.
+
+### 2. Business Validation:
+
+- **Find Child Business**: Uses `findOneMetaAdsTwoTier` to retrieve the child business details.
+- **Error Handling**: If the business is not found, a `CustomError` with status code `400` is thrown.
+
+### 3. Ad Creative Creation:
+
+- **API Call**: Invokes the `createAdCreatives` function to create the ad creative.
+- **Parameters**:
+  - `name`, `pageId`, `imageUrl`, `childSystemUserToken`, `adAccountId`, `message`, `description`, `videoUrl`, `headline`, `shadowInstagramPageId`.
+- **Error Handling**: If the Meta API call fails, a `CustomError` with status code `400` is thrown.
+
+**Meta API Call**:
+
+```sh
+curl -X POST "https://graph.facebook.com/v22.0/${adAccountId}/adcreatives" \
+  -H "Authorization: Bearer <CHILD_SYSTEM_USER_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "<CREATIVE_NAME>",
+    "object_story_spec": {
+      "page_id": "<PAGE_ID>",
+      "link_data": {
+        "link": "https://api.whatsapp.com/send",
+        "message": "<MESSAGE>",
+        "name": "<DESCRIPTION>",
+        "description": "<DESCRIPTION>",
+        "picture": "<IMAGE_URL>",
+        "call_to_action": {
+          "type": "WHATSAPP_MESSAGE",
+          "value": {
+            "app_destination": "WHATSAPP"
+          }
+        }
+      }
+    },
+    "degrees_of_freedom_spec": {
+      "creative_features_spec": {}
+    },
+    "fields": "name,object_story_spec,degrees_of_freedom_spec"
+  }'
+```
+
+### 4. Explanation of `createAdCreatives`:
+
+- **Function Overview**: This function handles the creation of an ad creative under a specified ad account.
+- **Parameters**:
+  - `name`: Name of the ad creative.
+  - `pageId`: ID of the associated Facebook page.
+  - `imageUrl`: URL of the image.
+  - `childSystemUserToken`: Access token for the system user.
+  - `adAccountId`: ID of the ad account.
+  - `message`: Message for the ad creative.
+  - `description`: Description of the creative.
+  - `videoUrl`: URL of the video (if applicable).
+  - `headline`: Headline of the creative.
+  - `shadowInstagramPageId`: Shadow Instagram Page ID.
+- **Process**:
+  - Constructs a POST request to the Facebook Graph API endpoint `/{adAccountId}/adcreatives`.
+  - Determines whether the creative is an image or video.
+  - If it is a video, uploads the video first and obtains the video ID.
+  - Populates the `object_story_spec` with the relevant fields.
+  - Sends the creative details along with the `childSystemUserToken`.
+  - Extracts information such as `name`, `object_story_spec`, and `degrees_of_freedom_spec`.
+  - Handles any errors by returning an error object.
+
+### 5. Explanation of `uploadAdMedia`:
+
+- **Function Overview**: This function handles the upload of media files to be used in ad creatives.
+- **Parameters**:
+  - `adAccountId`: The ID of the ad account.
+  - `title`: The title of the media.
+  - `description`: Optional description of the media.
+  - `locale`: Locale for the media (default: `en_US`).
+  - `mediaUrl`: The URL of the media file.
+  - `accessToken`: Access token for authentication.
+- **Process**:
+  - Validates that the required fields are provided.
+  - Constructs a `FormData` object with the media file's details.
+  - Sends a POST request to the Facebook Graph API endpoint `/{adAccountId}/advideos`.
+  - Extracts and returns the `id` of the uploaded media.
+  - Handles any errors by returning an error object.
+
+**Meta API Call for Media Upload**:
+
+```sh
+curl -X POST "https://graph.facebook.com/v22.0/${adAccountId}/advideos" \
+  -F "title=<TITLE>" \
+  -F "description=<DESCRIPTION>" \
+  -F "file_url=<MEDIA_URL>" \
+  -F "access_token=<ACCESS_TOKEN>" \
+  -F "locale=en_US"
+```
+
+### 6. Database Entry:
+
+- **Create Ad Creative**: Uses the `createMetaAdCreatives` function to insert the new ad creative into the database.
+- **Fields Stored**:
+  - `assistantId`, `clientId`, `name`, `objectStorySpec`, `adAccountId`, `fileUrl`, `adCreativityId`.
+- **Error Handling**: If the database insertion fails, a `CustomError` with status code `400` is thrown.
+
+### 7. Response:
+
+- If the operation is successful, it responds with:
+  - `success`: Boolean indicating success.
+  - `adCreative`: The created ad creative details.
+
+### 8. Error Handling:
+
+- **Meta API Errors**: Meta-specific errors are processed with `handleMetaError`.
+- **Other Errors**: Errors without a specific code are returned with a `500` status and the corresponding error message.
+
+### Notes:
+
+- Ensure the `childSystemUserToken` has the necessary permissions.
+- The media URL should be publicly accessible to Meta's servers.
+- For video creatives, ensure that the video file meets Meta's specifications.

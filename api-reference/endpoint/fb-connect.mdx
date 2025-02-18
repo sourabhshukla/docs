@@ -1,0 +1,147 @@
+---
+title: "Fb Connect"
+openapi: "POST /meta-ads/fb-connect"
+---
+
+# Facebook Authentication and Data Retrieval
+
+**Facebook Authentication and Data Retrieval Function**
+
+### Overview
+
+This function handles Facebook authentication, token validation, and data retrieval for business pages, ad accounts, and user permissions. It ensures that the necessary permissions are granted and processes the associated Facebook Business data.
+
+### Input Parameters
+
+- `req.user`: Contains user details, including `clientId`, `_id`, and `prospectId`.
+- `req.body`: Includes authentication response details and other parameters like `assistantId`, `authResponse`, `status`, `debug`, `partnerId`, and `agentId`.
+- `authResponse`: Holds Facebook authentication details, including `accessToken`, `userID`, and `grantedScopes`.
+
+### Key Functionalities
+
+#### 1. **Extracting Required Fields**
+
+- Extracts `clientId`, `_id`, `prospectId`, and other relevant user data from `req.user` and `req.body`.
+- Retrieves authentication response details from `authResponse`.
+- Determines the `connectedBy` entity.
+
+#### 2. **Checking Required Permissions**
+
+- Verifies if `grantedScopes` contains necessary permissions:
+  - `business_management`
+  - `ads_management`
+  - `ads_read`
+  - `pages_show_list`
+  - `pages_manage_metadata`
+- Throws an error if any required permission is missing.
+
+#### 3. **Fetching and Validating Assistant Data**
+
+- Calls `findOneLeanAssistant` to check if an existing assistant is connected.
+- If an assistant is found and valid, it updates the assistant data and returns a success response.
+- If the assistant already has valid data, it clones existing ad account and page data using `cloneAdsData`.
+
+#### 4. **Handling Existing Assistant Data and Cloning**
+
+- If the assistant already exists and is valid (`isValid` is true), the function:
+  1. Calls `cloneAdsData` to duplicate ad account and page data from the existing assistant.
+  2. Updates the assistant with new Facebook connection details, including `fbUserId`, `fbGrantedScopes`, `fbConnected`, and `fbUserToken`.
+  3. Returns a success response with the updated assistant data.
+
+**Cloning Ad Account and Page Data**
+
+- `cloneAdsData(clientId, assistantId, existingAssistantId)`:
+  - Fetches all valid (non-deleted) ad accounts linked to the existing assistant.
+  - Removes unnecessary fields such as `impressions`, `spend`, `clicks`, etc.
+  - Prepares `updateOne` operations to upsert the accounts for the new assistant.
+  - Calls `syncMetaAdAccounts` to execute the batch update.
+  - Fetches all valid (non-deleted) pages linked to the existing assistant.
+  - Prepares `updateOne` operations to upsert the pages for the new assistant.
+  - Calls `syncMetaPages` to execute the batch update.
+
+#### 5. **Token Exchange for Long-Lived Token**
+
+- Calls Facebook API to exchange the short-lived `USERS_ACCESS_TOKEN` for a long-lived token using the following API:
+  ```
+  https://graph.facebook.com/v22.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${partner?.appId || AISENSY_APP_ID}&client_secret=${partner?.appSecret || AISENSY_APP_SECRET}&fb_exchange_token=${USERS_ACCESS_TOKEN}
+  ```
+  - Retrieves the long-lived user token (`LONG_LIVED_USERS_TOKEN`).
+
+#### 6. **Fetching Facebook Business, Pages, and Ad Account Data**
+
+- Retrieves Facebook Business data using `https://graph.facebook.com/v22.0/me/businesses`.
+- Fetches pages via `https://graph.facebook.com/v22.0/me/accounts`.
+- Obtains ad accounts through `https://graph.facebook.com/v22.0/me/adaccounts`.
+- Fetches owned pages for a business via `https://graph.facebook.com/v22.0/{metaBusinessId}/owned_pages`.
+- Gets owned ad accounts for a business using `https://graph.facebook.com/v22.0/{metaBusinessId}/owned_ad_accounts`.
+- Ensures business and ad account data are correctly mapped.
+- Registers businesses on behalf of the user via `https://graph.facebook.com/v22.0/{businessManagerId}/managed_businesses`.
+- Retrieves system user tokens using `https://graph.facebook.com/v22.0/{metaBusinessId}/access_token`.
+- Fetches system user IDs via `https://graph.facebook.com/v22.0/me`.
+
+#### 7. **Processing Business-Related Data**
+
+- Calls `getUserToken` to get the system user token for businesses.
+- Fetches additional business-related pages and ad accounts.
+- Ensures businesses have a maximum limit of 15.
+
+#### 8. **Page Data Handling**
+
+- Retrieves and processes page data, including `whatsapp_number`, `is_published`, `category`, and `connected_instagram_account`.
+- Uploads page pictures to S3 if necessary.
+- Stores the processed data in `primaryMetaPagesDb`.
+- Assigns system users to pages when applicable.
+
+#### 9. **Ad Account Data Handling**
+
+- Processes ad account data, including `currency`, `account_status`, `min_campaign_group_spend_cap`, and `timezone_name`.
+- Assigns system users to ad accounts when necessary.
+
+### Explanation of `getUserToken`
+
+The `getUserToken` function is responsible for retrieving system user tokens for businesses. It follows these steps:
+
+1. **Initialize Variables:**
+   - Defines required permissions.
+   - Creates arrays for business data processing.
+   - Identifies the Business Manager ID.
+2. **Register Businesses:**
+   - Iterates over `businessData` and registers businesses under the Business Manager.
+   - Stores unique businesses to avoid duplicates.
+3. **Handle Registration Responses:**
+   - Waits for all `managed_businesses` API calls to complete.
+   - If a request fails, it logs the error.
+4. **Request Access Tokens:**
+   - Calls `/{metaBusinessId}/access_token` to retrieve system user tokens for businesses.
+5. **Retrieve System User IDs:**
+   - Uses the system user token to fetch the system user ID via `/me`.
+6. **Return Processed Data:**
+   - Returns an object containing business IDs, system user tokens, and system user IDs.
+
+### Error Handling
+
+- Uses `CustomError` to throw errors for permission issues or authentication failures.
+- Calls `handleMetaError` for API errors related to fetching pages or ad accounts.
+
+### API Calls Used
+
+1. `https://graph.facebook.com/v22.0/oauth/access_token` - Exchanges token for a long-lived access token.
+2. `https://graph.facebook.com/v22.0/me/businesses` - Retrieves user's Facebook businesses.
+3. `https://graph.facebook.com/v22.0/me/accounts` - Fetches pages associated with the user.
+4. `https://graph.facebook.com/v22.0/me/adaccounts` - Retrieves ad accounts linked to the user.
+5. `https://graph.facebook.com/v22.0/{metaBusinessId}/owned_pages` - Fetches owned pages for a business.
+6. `https://graph.facebook.com/v22.0/{metaBusinessId}/owned_ad_accounts` - Gets owned ad accounts for a business.
+7. `https://graph.facebook.com/v22.0/{businessManagerId}/managed_businesses` - Registers businesses on behalf of the user.
+8. `https://graph.facebook.com/v22.0/{metaBusinessId}/access_token` - Retrieves system user tokens.
+9. `https://graph.facebook.com/v22.0/me` - Fetches system user ID.
+
+### Conclusion
+
+This function ensures Facebook authentication and retrieves necessary business and advertising data while managing permissions and assignments efficiently.
+
+### Additional Enhancements
+
+- Implement retry logic for API failures.
+- Improve logging for debugging token exchanges.
+- Optimize database queries to reduce redundant calls.
+- Consider caching frequent API responses to improve performance.

@@ -1,0 +1,91 @@
+---
+title: "Fetch Opted Meta Audience Count"
+openapi: "POST /meta-ads/opt-meta-audience-count"
+---
+
+# Functionality Overview
+
+Fetched count of audience which have opted out for messages.
+
+1. Extract `adId, assistantId, startDate, endDate, leadType` from `req.body`.
+
+   - `leadType` can be `new` or `existing`.
+
+2. Construct a query object which may look like this, where only `adId` and `assistantId` are required rest all fields are optional.
+
+```json
+
+{
+    adId,
+    assistantId,
+    leadType,
+    sentAt:{
+        $exists: true,
+        $gte: new Date(startDate),
+        $lt: new Date(endDate),
+}}
+```
+
+3. We then make an aggregate query on `MetaAdAnalytics` analytics. Here is the query with an Explanation.
+
+```mongosh
+ [
+    { $match: queryObject },
+    {
+      $lookup: {
+        from: "conversations",
+        localField: "userNumber",
+        foreignField: "userNumber",
+        as: "abc",
+      },
+    },
+    { $unwind: "$abc" },
+    {
+      $match: {
+        "abc.assistantId": queryObject.assistantId,
+        "abc.optedIn": false,
+      },
+    },
+  ]
+```
+
+    - This filters documents from `MetaAdAnalytics` based on `queryObject`.
+    ```js
+    { $match: queryObject }
+    ```
+
+    - Perform `$lookup` (Join with `conversations` Collection)
+    ```json
+    {
+     $lookup: {
+       from: "conversations",
+       localField: "userNumber",
+       foreignField: "userNumber",
+        as: "abc",
+      }
+    }
+    ```
+        - Joins the `MetaAdAnalytics` collection with the `conversations` collection.
+        - Match Condition: `MetaAdAnalytics.userNumber == conversations.userNumber`
+        - The matching documents from `conversations` are stored in the array field "abc" in the resulting document.
+
+    - Unwind the Joined Data (`$unwind`)
+    ```json
+    { $unwind: "$abc" }
+    ```
+        - Since `$lookup` creates an array of matching documents, `$unwind` flattens this array.
+        - Each document in `MetaAdAnalytics` is duplicated for each matching entry in `conversations`.
+
+    - Filter on Unwound Data (`$match`), This filters only records where:
+    ```json
+    {
+     $match: {
+      "abc.assistantId": queryObject.assistantId,
+      "abc.optedIn": false,
+     },
+    }
+    ```
+       - `"abc.assistantId"` matches queryObject.assistantId.
+       - `"abc.optedIn"` is false.
+
+4. Return the count of optedOut contacts to the user.

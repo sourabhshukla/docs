@@ -1,0 +1,14 @@
+---
+title: "Fetch Ad Accounts"
+openapi: "POST /meta-ads/fetch-ad-accounts"
+---
+
+## Functionality Overview
+
+Calling this endpoint fetches ad accounts belonging to the particular project/assistant.
+
+1. Extract `assisatantId` from `req.body`.
+
+2. Fetch all the `adAccounts` from DB which have `assistantId` we received in request, do not have `deleted` status and where `fundingSource.id` exists and remove `systemUserToken` and `pageAccessToken` from them
+
+3. Loop over all the ad accounts objects and if any adAccount does not have tasks attribute then add a `tasks` attribute to it and initialize initialize it with an empty array and then send the adAccounts to the user.

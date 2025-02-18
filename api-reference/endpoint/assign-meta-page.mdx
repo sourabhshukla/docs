@@ -1,0 +1,86 @@
+---
+title: "Assign Meta Page"
+openapi: "POST /meta-ads/assign-meta-page"
+---
+
+## Functionality Overview
+
+This route assigns a Meta page to an assistant by verifying its details and making necessary API calls.
+
+### 1. Extracting Data:
+
+- **User Information**: The `clientId` is extracted from `req.user` or `req.body`.
+- **Request Body**: The `assistantId` and `pageId` are extracted from `req.body`.
+
+### 2. Page Validation:
+
+- **Validation of Parameters**: If either `assistantId` or `pageId` is missing, it throws a `CustomError` with the message `"Invalid Parameters"`.
+- **Check if Page is Already Assigned**: It retrieves the page details using `findMetaPage`. If the page is already assigned, it throws an error.
+- **Business Ownership**: It checks if the page is associated with a business. If not, it throws an error.
+
+### 3. Fetching Page Data:
+
+- **Existing Data for the Page**: If the page is found in the database, the page's meta data is retrieved. If it’s assigned to a business, it fetches the `fbUserToken` for the assistant from the database.
+- **Fetch Data from Meta**: If the page is not found in the database, it proceeds to fetch page data from Facebook’s API using the `graphApiAxiosInstance`. The request is made to fetch page details including business info, welcome messages, and category.
+
+```sh
+curl -X GET "https://graph.facebook.com/v22.0/${pageId}?access_token=${fbUserToken}&fields=${pageFields}&locale=en_US"
+```
+
+- Where `pageFields` are these:
+
+```
+ access_token,has_whatsapp_business_number,has_whatsapp_number,whatsapp_number,name,id,business,is_published,picture,messenger_ads_default_page_welcome_message{page_welcome_message_type,page_welcome_message_body},messenger_ads_default_icebreakers,category,connected_instagram_account
+```
+
+### 4. Error Handling for Meta Data:
+
+- If there is an issue fetching the page from the Meta API (e.g., it’s not owned by any business), it throws a `CustomError`.
+- If the business does not own the page, or if there are issues in the API response (like missing `business.id`), an error is thrown.
+
+### 5. Preparing the New Page Data:
+
+- **Meta Business ID and Name**: Extracted from the fetched Facebook page data.
+- **Welcome Message**: If the welcome message is in JSON format, it's parsed and the ice breakers are extracted.
+- **Picture URL**: The page picture URL is uploaded to S3 using the `uploadAndGetS3MediaUrl` function and the s3 url is then used in the `newPageData` object.
+
+The `newPageData` object is then created to hold the data related to the page, such as:
+
+- `clientId`
+- `assistantId`
+- `metaBusinessId`
+- `metaBusinessName`
+- `pageId`
+- `pageName`
+- `pageAccessToken`
+- `whatsappNumber`
+- `isPublished`
+- `adsDefaultIcebreakers`
+- `picture`
+- `category`
+
+### 6. Verifying Permissions:
+
+- It checks if the assistant has the required permissions for the business associated with the page using `findMetaPage`. If no permissions are found, it throws a `CustomError`.
+
+### 7. Assigning the Page:
+
+- The `graphApiAxiosInstance` is used again to make an API call to Meta to assign the page to the assistant. The request is made with the `systemUserId` and `fbUserToken` to ensure the assistant has the correct permissions.
+
+```sh
+curl -X POST "https://graph.facebook.com/v22.0/${pageId}/assigned_users" \
+  -d "user=${systemUserId}" \
+  -d "tasks=MANAGE" \
+  -d "access_token=${fbUserToken}"
+```
+
+- If the assignment fails, an error is thrown.
+
+### 8. Upsert Page Data:
+
+- After successfully assigning the page, the `newPageData` is inserted or updated in the database using `upsertMetaPage`.
+
+### 9. Response:
+
+- If the operation is successful, it responds with the updated page data in the response body.
+- In case of errors, the handler logs the error, processes any specific Meta API errors, and sends an appropriate error message in the response.

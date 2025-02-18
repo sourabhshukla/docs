@@ -1,0 +1,11 @@
+---
+title: "Fetch Page"
+openapi: "POST /meta-ads/fetch-page"
+---
+
+## Functionality Overview
+
+Fetch Page data belonging to `assistantId` and `pageId`.
+
+1. Extract `assistantId` and `pageId` from `req.body` and throw error if no `assistantId` was found.
+2. Fetch page data belonging to the particular `assistantId` and `pageId` and remove sensitive information like `systemUserToken` and `pageAccessToken` and return the data to user.

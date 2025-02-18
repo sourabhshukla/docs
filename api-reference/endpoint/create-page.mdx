@@ -1,0 +1,112 @@
+---
+title: "Create Meta Page"
+openapi: "POST /meta-ads/create-page"
+---
+
+## Functionality Overview
+
+This route creates a new Meta page for the specified assistant.
+
+### 1. Extracting Data:
+
+- **User Information**: `clientId` is extracted from `req.user` or `req.body`.
+- **Request Body**:
+  - `assistantId`: ID of the assistant.
+  - `pageName`: Name of the new page.
+  - `pageDescription`: Description for the new page.
+  - `profilePhotoUrl`: URL of the profile picture.
+  - `coverPhotoUrl`: URL of the cover picture.
+
+### 2. Permissions Check:
+
+- The user's access token is validated to ensure the following permissions are present:
+  - `business_management`
+  - `ads_management`
+  - `ads_read`
+  - `pages_show_list`
+  - `pages_manage_metadata`
+
+If any permission is missing, a `CustomError` is thrown.
+
+### 3. Retrieve Existing Pages:
+
+- Fetches the list of pages the user currently has access to.
+
+**Meta API Call:**
+
+```sh
+curl -X GET "https://graph.facebook.com/v22.0/me/accounts" \
+  -H "Authorization: Bearer <USER_ACCESS_TOKEN>" \
+  -G \
+  --data-urlencode "fields=id" \
+  --data-urlencode "locale=en_US" \
+  --data-urlencode "limit=100"
+```
+
+### 4. Page Creation:
+
+- Calls the `createMetaPage` function to create a new Meta page.
+- **Explanation of `createMetaPage`:**
+
+  - Accepts the following parameters:
+    - `pageName`: Name of the new page.
+    - `pageDescription`: Description for the new page.
+    - `profilePhotoUrl`: URL for the profile picture.
+    - `coverPhotoUrl`: URL for the cover photo.
+    - `userAccessToken`: Access token for the Facebook user.
+    - `userId`: ID of the user under whose account the page will be created.
+  - Makes a POST request to the `/accounts` endpoint with the provided details.
+
+  **Meta API Call:**
+
+  ```sh
+  curl -X POST "https://graph.facebook.com/v22.0/{userId}/accounts" \
+    -H "Authorization: Bearer <USER_ACCESS_TOKEN>" \
+    -d "name=<PAGE_NAME>" \
+    -d "about=<PAGE_DESCRIPTION>" \
+    -d "category_enum=TOPIC_EVENT" \
+    -d "picture=<PROFILE_PHOTO_URL>" \
+    -d "cover_photo.url=<COVER_PHOTO_URL>"
+  ```
+
+### 5. Identify the New Page:
+
+- Compares the old and new lists of pages to identify the newly created page.
+- If no new page is found, an error is thrown.
+
+### 6. Extract Welcome Message:
+
+- Extracts the default page welcome message from `messenger_ads_default_page_welcome_message`.
+- If the message is in JSON format, it is parsed to retrieve `text_format.message.ice_breakers`.
+
+### 7. Construct Page Object:
+
+- Constructs an object containing page information, including:
+  - `pageId`
+  - `pageName`
+  - `pageAccessToken`
+  - `hasWhatsappBusinessNumber`
+  - `whatsappNumber`
+  - `isPublished`
+  - `adsDefaultIcebreakers`
+  - `adsDefaultWelcomeMessage`
+  - `tasks`
+  - `assistantId`
+  - `clientId`
+  - `picture`
+  - `status`
+  - `category`
+  - `pageDescription`
+
+### 8. Upsert Page Data:
+
+- Calls `upsertMetaPage` to insert or update the page details in the database.
+
+### 9. Response:
+
+- **Success**: Returns `200` with the created page details.
+- **Failure**: Handles Meta API errors and returns a `500` status code with an error message.
+
+### Error Handling:
+
+- If Meta API returns an error, it is processed using `handleMetaError` and logged appropriately.

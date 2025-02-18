@@ -1,0 +1,130 @@
+---
+title: "Edit Meta Ad"
+openapi: "POST /meta-ads/edit-meta-ad"
+---
+
+## Functionality Overview
+
+This route updates an existing Meta Ad's settings for a given assistant within a specified ad account.
+
+### 1. Extracting Data:
+
+- **User Information**: The `clientId` is extracted from `req.user`.
+- **Request Body**: The following fields are extracted from `req.body`:
+  - `adId`: MongoDB ID of the ad to be updated.
+  - `dailyBudget`: New daily budget for the ad.
+  - `adStopDate`: New stop date for the ad.
+  - `assistantId`: ID of the assistant.
+  - `selectedPlatforms`: Updated platforms for ad delivery.
+  - `minAge`: Updated minimum age for the target audience.
+  - `maxAge`: Updated maximum age for the target audience.
+  - `gender`: Updated target gender.
+  - `geoLocation`: Updated target geo-location.
+  - `advanceTargets`: Updated advanced targeting options.
+
+### 2. Assistant Validation:
+
+- **Retrieve Assistant Info**: Validates the assistant's existence and connection to Facebook.
+- **Calculate Commission**: Determines commission percentage based on the assistant's partner ID.
+
+### 3. Business and Page Validation:
+
+- **Find Child Business**: Retrieves the associated child business.
+- **Find Meta Ad**: Validates the existence of the ad using `findMetaAd`, and fetch the `adsData` if it exists.
+
+### 4. Formatting Advanced Targeting:
+
+- **Process**:
+  - Iterates through the `advanceTargets` object.
+  - If a key is `education_statuses` or `relationship_statuses`, maps values to an array of IDs.
+  - For other keys, maps the values to an array of objects with `id` fields.
+  - Stores the result in `formattedAdvanceTargets`.
+
+### 5. Formatting GeoLocation:
+
+- **Function**: `formatGeoLocation`
+- **Process**:
+  - Accepts the provided `geoLocation` object.
+  - Removes unnecessary fields like `country_name` and `type`.
+  - Returns the formatted geo-location.
+
+### 6. Updating GeoLocation:
+
+- **Function**: `updateGeoLocation`
+- **Process**:
+  - Accepts the provided `geoLocation` and existing `adsData`.
+  - Iterates through the geo-location keys.
+  - For array fields, matches entries with existing geo-location data.
+  - Returns the updated geo-location.
+
+### 7. Updating Ad Set:
+
+- **API Call**: Invokes the `updateAdSet` function to update the ad set.
+- **Parameters**:
+  - `adSetId`: The ID of the existing ad set.
+  - `updateData`: Contains the new settings for the ad set.
+- **Process**:
+  - Constructs the payload with the updated budget, geo-location, and advanced targeting.
+  - Sends a POST request to the Meta API.
+- **Error Handling**: If the Meta API call fails, a `CustomError` is thrown.
+
+**Meta API Call**:
+
+```sh
+curl -X POST "https://graph.facebook.com/v22.0/${adSetId}" \
+  -H "Authorization: Bearer <CHILD_SYSTEM_USER_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "end_time": "<AD_STOP_DATE>",
+    "daily_budget": "<DAILY_BUDGET>",
+    "targeting": {
+      "age_min": "<MIN_AGE>",
+      "age_max": "<MAX_AGE>",
+      "publisher_platforms": ["facebook", "instagram"],
+      "genders": [1],
+      "geo_locations": {
+        "countries": ["US"]
+      },
+      "flexible_spec": [
+        {
+          "education_statuses": [2],
+          "relationship_statuses": [1]
+        }
+      ]
+    },
+    "access_token": "<CHILD_SYSTEM_USER_TOKEN>",
+    "fields": "name,optimization_goal,billing_event,daily_budget,campaign_id,targeting,start_time,status"
+  }'
+```
+
+### 8. Updating Database Records:
+
+- **Function**: `updateMetaAdSet`
+- **Parameters**: The assistant ID, ad set ID, and updated targeting information.
+- **Process**:
+  - Updates the ad set record in the database with the new settings.
+  - Adjusts the `geo_locations` field using the `updateGeoLocation` helper.
+
+### 9. Updating Ad Data:
+
+- **Function**: `updateMetaAd`
+- **Parameters**: The ad ID and a `newAdObject` containing the updated details.
+- **Process**:
+  - Constructs an object with the updated `dailyBudget`, `geoLocation`, `gender`, `minAge`, `maxAge`, `platforms`, `adStopDate`, and `advanceTargets`.
+  - Sends the update command to the database.
+
+### 10. Response:
+
+- If the operation is successful, it responds with the updated ad data.
+
+### 11. Error Handling:
+
+- **Meta API Errors**: Meta-specific errors are processed with `handleMetaError`.
+- **Slack Notification**: Sends an error notification to Slack.
+- **Fallback Error**: Returns a `500` status with the error message.
+
+### Notes:
+
+- Ensure the `childSystemUserToken` has the necessary permissions.
+- Validate that the `dailyBudget` meets Meta's guidelines.
+- Targeting information should follow Meta's specifications for demographic and interest-based targeting.

@@ -1,0 +1,72 @@
+---
+title: "Fetch CTW Ads"
+openapi: "POST /meta-ads/fetch-ctw-ads"
+---
+
+# Functionality Overview
+
+Syncs Meta ads using meta api and returns count of created,modified and matched ad documents and the synced ad account data.
+
+1. Extract `clientId` from `req.user`,`assisatantId`, `adAccountId` from `req.body`.
+
+2. Fetch assistantData and adAccoutData from DB and throw error if any of them is not found.
+
+3. Call this api to fetch ads details from META:
+
+```sh
+curl -X GET "https://graph.facebook.com/v22.0/{adAccountId}/ads?limit={limit}&access_token={systemUserToken}&fields={adFields}&locale=en_US"
+
+```
+
+    - `limit` here is 30.
+    - `adFields` here is this
+
+    ```
+     id,name,creative{id,name,body,call_to_action_type,image_url,link_url,object_type,object_url,thumbnail_url,title,object_story_spec,asset_feed_spec,video_id},insights.fields(clicks,cost_per_inline_link_click,cpm,cpp,ctr,date_start,date_stop,impressions,inline_link_clicks,inline_post_engagement,objective,reach,spend,unique_clicks,unique_inline_link_clicks,unique_outbound_clicks,quality_ranking,actions,engagement_rate_ranking).date_preset(maximum),campaign{id,name,objective,buying_type},adset{id,name,adlabels,adset_schedule,bid_adjustments,bid_amount,bid_constraints,bid_info,bid_strategy,billing_event,budget_remaining,daily_budget,daily_min_spend_target,daily_spend_cap,destination_type,effective_status,end_time,optimization_goal,promoted_object,status,targeting,start_time},status,bid_amount,effective_status,preview_shareable_link,issues_info
+    ```
+
+    - If this api throws this particular error `Unsupported request - method type: get` then:
+       - We remove `preview_shareable_link` from `adsFields` and call this api:
+          ```
+          curl -X GET "https://graph.facebook.com/v22.0/{adAccountId}/ads?filtering={filter}&limit={limit}&access_token={systemUserToken}&fields={adFields}&locale=en_US"
+          ```
+       - Where `filter` is stringified version of this object:
+         ```json
+           [{
+              field: "campaign.objective",
+              operator: "IN",
+              value: [
+               "OUTCOME_TRAFFIC",
+               "OUTCOME_SALES",
+               "OUTCOME_ENGAGEMENT",
+               "OUTCOME_AWARENESS",
+               "MESSAGES",
+              "OUTCOME_LEADS",
+            ],
+          }]
+
+         ```
+
+4. Now for each ad an updated ad object is created with the help of information received using meta api.
+
+   - we extract `destinationType`,`assetFeedCTA` and `call_to_action_type` from `creative` and we skip and do not process that ad if:
+
+   ```javascript
+      if (
+       !destinationType.includes("WHATSAPP") &&
+       ![assetFeedCTA, call_to_action_type].includes("WHATSAPP_MESSAGE")
+     ) {
+       continue;
+     }
+   ```
+
+   - an object at the level of ad account is maintained to update `impressions`, `spend`,`clicks`,`reach`,`unique_clicks` at an account level by aggregating same values of each ad.
+   - For video ads if thumbnail_url received from meta then it is uploaded to our S3 bucket and the s3 image url is then updated in the updated mongo ad object instead of url from meta.
+   - if instead of thumbnail_url, an image hash is received then we call this api to fetch image url and then update it in our new ad object.
+
+   ```sh
+      curl -X GET "https://graph.facebook.com/v22.0/{adAccountId}/adimages?hashes={JSON.stringify([hash])}&access_token={systemUserToken}&fields={adImageFields}&locale=en_US"
+
+   ```
+
+5. The ad account document is now updated and also the ad data is also written to DB using bulkWrite and `modifiedCount`, `matchedCount`, `insertedCount` along with `adAccountData` (after removing `systemUserToken`) are then returned to the user.

@@ -1,0 +1,48 @@
+---
+title: "Fetch Meta Ad Creative"
+openapi: "POST /meta-ads/fetch-meta-ad-creative"
+---
+
+## Functionality Overview
+
+This route retrieves the list of Meta Ad Creatives for a given assistant and ad account.
+
+### 1. Extracting Data:
+
+- **Request Body**: The following fields are extracted from `req.body`:
+  - `adAccountId`: The ID of the ad account whose ad creatives need to be fetched.
+  - `assistantId`: The ID of the assistant initiating the request.
+
+### 2. Ad Creative Retrieval:
+
+- **Database Query**: Invokes the `getMetaAdCreatives` function to retrieve the ad creatives from the database.
+- **Parameters**:
+  - `assistantId`, `adAccountId`.
+- **Error Handling**: If the database query fails, a `CustomError` with status code `400` is thrown.
+
+### 3. Explanation of `getMetaAdCreatives`:
+
+- **Function Overview**: This function handles the retrieval of ad creatives from the database.
+- **Parameters**:
+  - `assistantId`: ID of the assistant.
+  - `adAccountId`: ID of the ad account.
+- **Process**:
+  - Calls `MetaAdCreatives.find(queryObject)` to retrieve matching ad creatives from the database.
+  - If successful, returns the ad creatives with `null` as the error.
+  - If an error occurs, returns the error with `null` for the data.
+
+### 4. Response:
+
+- If the operation is successful, it responds with:
+  - `success`: Boolean indicating success.
+  - `adCreative`: An array of the fetched ad creatives.
+
+### 5. Error Handling:
+
+- **Database Errors**: Database-specific errors are caught and returned.
+- **Other Errors**: Errors without a specific code are returned with a `500` status and the corresponding error message.
+
+### Notes:
+
+- Ensure the ad account ID is valid and associated with the assistant's business.
+- The ad creatives are retrieved directly from the database; no external Meta API call is made.

@@ -1,0 +1,16 @@
+---
+title: "Target Search"
+openapi: "POST /meta-ads/target-search"
+---
+
+# Functionality Overview
+
+Retrieve target audiences for your ads that match your search query.
+
+1. Extract `assistantId, text` from `req.body` and throw error if any of them is not present.
+2. Call this meta api return the result
+
+```sh
+curl -X GET "https://graph.facebook.com/v22.0/{AISENSY_AD_ACCOUNT_ID}/targetingsearch?q={text}&access_token={SYSTEM_USER_ACCESS_TOKEN}&locale=en_US"
+
+```

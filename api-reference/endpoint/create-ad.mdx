@@ -1,0 +1,75 @@
+---
+title: "Create Ad"
+openapi: "POST /meta-ads/create-ad"
+---
+
+## Functionality Overview
+
+1. Before request is received by the route these request validations are made:
+
+```json
+{
+      adDescription: z.string().max(255),
+      adName: z.string().max(255),
+      displayLink: z.string().url({ message: "Invalid display link" }),
+      imageUrl: z.string().url({ message: "Invalid Image URL" }),
+      metaPageId: z.string(),
+      adAccountId: z.string(),
+      linkTitle: z.string().nullish(),
+      linkDescription: z.string().nullish(),
+      headlineDescription: z.string().max(255).nullish(),
+      linkImage: z.string().nullish(),
+      duration: z.number(),
+      dailyBudget: z.string(),
+      status: z.string().nullish(),
+      maxAge: z.number().nullish(),
+      minAge: z.number(),
+      headline: z.string().max(255),
+      gender: z.enum(["MALE", "FEMALE", "ALL"]).nullish(),
+      adStopDate: z.coerce
+        .date()
+        .min(new Date(), { message: "Too short, Increase Ad duration!" }),
+      assistantId: z.string(),
+      assistantName: z.string(),
+      geoLocation: z.object({}).passthrough(),
+      advanceTargets: z.object({}).passthrough().optional(),
+      videoUrl: z.string().url({ message: "Invalid Video URL" }).nullish(),
+}
+```
+
+1. All the parameters mentioned above are extracted from `req.body`, `clientId` and `partnerId` are extracted from `req.user`.
+
+2. Assistant details are fetched from Db using `assisatantId`.
+
+3. Ad account details are fetched from DB using this filter, and error is thrown if not found
+
+```json
+{ assistantId, accountId: adAccountId, isAssigned: true }
+```
+
+4. advancedTargets are formatted and stored in a new object
+
+   - If the advancedTargets are of category "education_statuses", or "relationship_statuses" then category values are stored in form of array otherwise they are stored in form of array of objects.
+
+5. Then campaign object,adset object and creative objects are created,stringified and encoded using `encodeURIComponent`.
+
+6. An ad is created using this api
+
+```sh
+curl -X POST "https://graph.facebook.com/v22.0/{adAccountId}/ads" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "name": "{adName}",
+           "adset_spec": {adsetSpec},
+           "creative": {creative},
+           "status": "{status}",
+           "access_token": "{systemUserToken}",
+           "fields": "{adFields}",
+           "locale": "en_US"
+         }'
+
+```
+
+- Here adFields refers to these fields: `effective_status,creative,campaign_id,adset_id,preview_shareable_link `
+
+7. The ad data is then wrote to Db and the ad account document is updated with `adCamapignId` which is the camapign_id of the newly created ad and the ad data is then sent to the user.

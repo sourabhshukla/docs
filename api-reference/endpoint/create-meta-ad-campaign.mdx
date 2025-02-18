@@ -1,0 +1,84 @@
+---
+title: "Create Meta Ad Campaign"
+openapi: "POST /meta-ads/create-meta-ad-campaign"
+---
+
+## Functionality Overview
+
+This route creates a new Meta Ad Campaign for a given assistant within a specified ad account.
+
+### 1. Extracting Data:
+
+- **User Information**: The `clientId` is extracted from `req.user` or `req.body`.
+- **Request Body**: The following fields are extracted from `req.body`:
+  - `name`: The name of the ad campaign.
+  - `objective`: The objective of the ad campaign.
+  - `status`: The status of the campaign (e.g., ACTIVE, PAUSED).
+  - `specialAdCategories`: Categories like credit, housing, employment, etc.
+  - `adAccountId`: The ID of the ad account under which the campaign is created.
+  - `assistantId`: The ID of the assistant initiating the request.
+
+### 2. Business Validation:
+
+- **Find Child Business**: Uses `findOneMetaAdsTwoTier` to retrieve the child business details.
+- **Error Handling**: If the business is not found, a `CustomError` with status code `400` is thrown.
+
+### 3. Ad Campaign Creation:
+
+- **API Call**: Invokes the `createAdCampaign` function to create the ad campaign.
+- **Parameters**:
+  - `name`, `objective`, `status`, `specialAdCategories`, `adAccountId`, `childSystemUserToken`.
+- **Error Handling**: If the Meta API call fails, a `CustomError` with status code `400` is thrown.
+
+**Meta API Call**:
+
+```sh
+curl -X POST "https://graph.facebook.com/v22.0/act_${adAccountId}/campaigns" \
+  -H "Authorization: Bearer <CHILD_SYSTEM_USER_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "<CAMPAIGN_NAME>",
+    "objective": "<OBJECTIVE>",
+    "special_ad_categories": [],
+    "status": "<STATUS>",
+    "fields": "name,objective,status,special_ad_categories"
+  }'
+```
+
+### 4. Explanation of `createAdCampaign`:
+
+- **Function Overview**: This function handles the creation of an ad campaign under a specified ad account.
+- **Parameters**:
+  - `name`: Name of the ad campaign.
+  - `objective`: Campaign's objective (e.g., `CONVERSIONS`, `TRAFFIC`).
+  - `status`: Campaign status (`ACTIVE`, `PAUSED`).
+  - `adAccountId`: ID of the target ad account.
+  - `childSystemUserToken`: Access token for the child system user.
+- **Process**:
+  - Constructs a POST request to the Facebook Graph API endpoint `/act_{adAccountId}/campaigns`.
+  - Sends the campaign details along with the `childSystemUserToken`.
+  - Extracts information such as `name`, `objective`, `status`, and `special_ad_categories`.
+  - Handles any errors by returning an error object.
+
+### 5. Database Entry:
+
+- **Create Ad Campaign**: Uses the `createMetaAdCampaigns` function to insert the new ad campaign into the database.
+- **Fields Stored**:
+  - `assistantId`, `clientId`, `name`, `objective`, `status`, `specialAdCategories`, `adCampaignId`, `adAccountId`.
+- **Error Handling**: If the database insertion fails, a `CustomError` with status code `400` is thrown.
+
+### 6. Response:
+
+- If the operation is successful, it responds with:
+  - `success`: Boolean indicating success.
+  - `adCampaign`: The created ad campaign details.
+
+### 7. Error Handling:
+
+- **Meta API Errors**: Meta-specific errors are processed with `handleMetaError`.
+- **Other Errors**: Errors without a specific code are returned with a `500` status and the corresponding error message.
+
+### Notes:
+
+- Ensure the `childSystemUserToken` has the necessary permissions.
+- The `objective` must match Meta's supported values.

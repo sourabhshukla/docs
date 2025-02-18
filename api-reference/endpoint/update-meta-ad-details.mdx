@@ -1,0 +1,43 @@
+---
+title: "Update Meta Ad Details"
+openapi: "POST /meta-ads/updateMetaAdDetails"
+---
+
+## Functionality Overview
+
+### 1. Extracting Data:
+
+- **User Information**: The `_id` (agent ID) and `type` of the user are extracted from `req.user`.
+- **Request Body**: It extracts values from `req.body` such as `assistantId`, `totalAssignedBudget`, and other fields (using destructuring). The rest of the request body (besides these two) is stored in `updateObj`.
+
+### 2. Preparing the Update:
+
+- **Creating Update Object**: A new `update` object is created, which will hold the fields to be updated. Each key in `updateObj` will be prefixed with `metaAdsDetails.` to specify that they belong to that section of data. This transformation ensures that the fields are nested under `metaAdsDetails`.
+
+### 3. Handling `totalAssignedBudget`:
+
+- If `totalAssignedBudget` is provided, the following happens:
+  - **Budget Validation**: If the budget is less than 5000, it throws a `CustomError` with a message saying the minimum budget should be INR 5000.
+  - **Campaign Update**: If the budget is valid, it proceeds to update the `totalAssignedBudget` field in the database.
+  - It then retrieves meta ad accounts (`adCampaignId` and `systemUserToken`) by calling `findMetaAdAccounts` and makes requests to update the ad campaign spend limit via the `graphApiAxiosInstance`.
+  - **API Call for Campaigns**: A request is made to the Facebook Graph API (via Axios) to update the spend cap for each campaign using the `adCampaignId` and `systemUserToken` for each account. The total budget is multiplied by 100 (likely because the Graph API expects the value in cents).
+  ```sh
+  curl -X POST "https://graph.facebook.com/v22.0/${adCampaignId}" \
+  -d "access_token=${systemUserToken}" \
+  -d "spend_cap=${totalAssignedBudget}"
+  ```
+  - **Error Handling**: The result of the API calls is checked, and if an error is encountered (specifically with `error_subcode === 2446307`), it throws an error with a user-friendly message.
+
+### 4. Validation:
+
+- **Check for `assistantId`**: If `assistantId` is not provided or if there are no valid fields to update (`update` is empty), a `CustomError` is thrown.
+
+### 5. Updating Assistant:
+
+- **Assistant Update**: The `updateAssistantReturnNew` function is called to update the assistant's data. The `fbConnectedBy` field is added to the update if the user's `type` is not `"WHITELABEL"`. This adds the `agentId` to indicate which user is connecting the Facebook account.
+- If an error occurs during the assistant update, it’s thrown.
+
+### 6. Response:
+
+- If the assistant data is successfully updated, it sends a success response with the updated assistant data.
+- If no assistant data is returned or if the user does not have access to update the assistant’s details, a `CustomError` is thrown with a relevant error message.

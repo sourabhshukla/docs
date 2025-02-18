@@ -1,0 +1,28 @@
+---
+title: "Fetch Ad"
+openapi: "POST /meta-ads/fetch-ad"
+---
+
+# Functionality Overview
+
+Fetches ad data of a particular ad along with its ad account data as well as total messages received on that ad.
+
+1. Extract `_id` (adId), `assisatantId` from `req.body`.
+
+2. Fetch ad data of the ad with this filter from DB:
+
+```javascript
+   {
+      _id,
+      assistantId,
+      adStatus: { $ne: "NONE" },
+    }
+```
+
+3. Get ad account id from the fetched ad data and fetch all the ad account details (except systemUserToken) from DB and ad the adAccount data in the fetched ad object with key "adAccount".
+
+4. Fetch total messages on that ad using `getTotalMesssages` function and it to ad object with key "totalMessages", Here is how it works:
+
+   - It takes 2 parameters `assisatantId` and `adId` and then makes an aggregate query on the `MetaAdAnalytics` collection and calulates the sum of all the messages received on that adId and return it, which we then add to the `totalMessages` attribute in the updatedAdObject.
+
+5. If no data comes from `getTotalMessages` then set "totalMessages" attribute to 0 and now send the updated mongoAdObject to user.

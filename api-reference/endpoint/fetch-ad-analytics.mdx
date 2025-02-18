@@ -1,0 +1,12 @@
+---
+title: "Fetch Ad Analytics"
+openapi: "POST /meta-ads/fetch-ad-analytics"
+---
+
+## Functionality Overview
+
+Fetch Ad analytics of an ad
+
+1. Extract `limit, page, leadType, startDate, endDate, sort, adId, assistantId` from `req.body` and validted them.
+
+2. Fetch Ad analytics from `MetaAdAnalytics` with the constructed query object and count of `MetaAdAnalytics` documents satisfying those conditons and send them to the user.

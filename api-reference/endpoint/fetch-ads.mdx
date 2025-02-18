@@ -1,0 +1,14 @@
+---
+title: "Fetch Ads"
+openapi: "POST /meta-ads/fetch-ads"
+---
+
+## Functionality Overview
+
+Calling this api gives you all the ads belonging to the project and their count.
+
+1. Extract `assistantId` from `req.body`.
+
+2. Check if any `assistant` exists with the `assistantId` mentioned in the request and throw error if there is no such assistant present.
+
+3. Fetch all ads present in DB which have `assisatantId` mentioned in request and do not have `NONE` adStatus and their count and return to the user.

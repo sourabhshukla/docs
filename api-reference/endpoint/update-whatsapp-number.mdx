@@ -1,0 +1,63 @@
+---
+title: "Update Whatsapp Number"
+openapi: "POST /meta-ads/update-whatsapp-number"
+---
+
+## Functionality Overview
+
+Used to update the whatsapp number in the ads manager.
+
+1. Extract `assistantId, number, pageId, verificationCode` from `req.body`.
+
+2. Fetch the page details from DB using `assisatantId` and `pageId`.
+
+   - Check if the number received in `req.body` is equal to `whatsappNumber` received from page detail from DB, If they are same then send a response to user stating that `the whatsapp number is already linked` and the `pageData` fetched from DB.
+
+3. Else call this api:
+
+```sh
+curl -X POST "https://graph.facebook.com/v22.0/{pageId}/page_whatsapp_number_verification" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "whatsapp_number": "{number}",
+           "verification_code": "{verificationCode}",
+           "access_token": "{pageAccessToken}",
+           "locale": "en_US"
+         }'
+
+```
+
+- If any error occurs in this api call then extract `error_subcode, code, message` from the `error` object and check if this condtion is satisfied
+
+```javscript
+   if (
+        ([463, 467, 466, 460].includes(error_subcode) && code === 190) ||
+        errMsg.includes(message)
+      )
+```
+
+- If not satisfied then throw the error otherwise make this api call to fetch all pages from meta and find the current page using the `pageId` received in `req.body`.
+
+```sh
+curl -X GET "https://graph.facebook.com/v22.0/{metaBusinessId}/owned_pages?access_token={systemUserToken}&fields=whatsapp_number,access_token&locale=en_US"
+```
+
+- If the page is not found then throw an error stating `Permissions missing`, otherwise get the `pageAccessToken` from the pageData fetched from meta and again make this api call and get the `otpResponse` from it and updated the `pageAccessToken` in the DB also.
+
+```sh
+curl -X POST "https://graph.facebook.com/v22.0/{pageId}/page_whatsapp_number_verification" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "whatsapp_number": "{number}",
+           "verification_code": "{verificationCode}",
+           "access_token": "{pageAccessToken}",
+           "locale": "en_US"
+         }'
+```
+
+4. Extract `verfication_status` from the `otpResponse` we got earlier. Now:
+   - If `verfication_status` is `INVALID_WHATSAPP_NUMBER` then throw an error stating that the `Number is not linked with whatsapp`.
+   - If `verfication_status` is `INVALID_VERIFICATION_CODE` then throw an error stating that the `OTP is invalid`.
+   - If `verfication_status` is `VERIFICATION_CODE_SEND_SUCCESS` then send response stating that otp has been sent.
+   - If `verfication_status` is either of these 2 values `VERIFIED, AUTO_VERIFIED_ENTERPRISE_NUMBER_DIRECT` then update the number in page Data in DB and send response to user stating that the otp verification was successfull.
+   - If none of the conditions apply then we thrown an error stating `Invalid Data, Contact Admin`.

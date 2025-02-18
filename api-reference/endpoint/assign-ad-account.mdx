@@ -1,0 +1,90 @@
+---
+title: "Assign Ad Account"
+openapi: "POST /meta-ads/assign-ad-account"
+---
+
+## Functionality Overview
+
+This route assigns a Meta Ad Account to an assistant by verifying its details and making necessary API calls.
+
+### 1. Extracting Data:
+
+- **User Information**: The `clientId` is extracted from `req.user` or `req.body`.
+- **Request Body**: The `assistantId` and `adAccountId` are extracted from `req.body`.
+
+### 2. Ad Account Validation:
+
+- **Validation of Parameters**: If either `assistantId` or `adAccountId` is missing, it throws a `CustomError` with the message "Invalid Parameters".
+- **Check if Ad Account is Already Assigned**: It retrieves the account details using `findOneMetaAdAccount`. If the account is already assigned, it throws an error.
+- **Business Ownership**: It checks if the ad account is associated with a business. If not, it throws an error.
+
+### 3. Fetching Ad Account Data:
+
+- **Existing Data for the Ad Account**: If the account is found in the database, the account's meta data is retrieved. If it’s assigned to a business, it fetches the `fbUserToken` for the assistant from the database.
+- **Fetch Data from Meta**: If the account is not found in the database, it proceeds to fetch account data from Facebook’s API using the `graphApiAxiosInstance`. The request is made to fetch account details including business info, balance, and status.
+
+```sh
+curl -X GET "https://graph.facebook.com/v22.0/${adAccountId}?access_token=${fbUserToken}&fields=id,name,business,user_tasks,account_status,amount_spent,balance,created_time,currency,is_prepay_account,min_campaign_group_spend_cap,min_daily_budget,timezone_name,age,disable_reason,funding_source,owner"
+```
+
+### 4. Error Handling for Meta Data:
+
+- If there is an issue fetching the account from the Meta API (e.g., it’s not owned by any business), it throws a `CustomError`.
+- If the business does not own the account, or if there are issues in the API response (like missing `business.id`), an error is thrown.
+
+### 5. Preparing the New Ad Account Data:
+
+- **Meta Business ID and Name**: Extracted from the fetched Facebook account data.
+- **Funding Source Details**: The funding source ID is extracted if present.
+- **Account Age Calculation**: The account age is calculated in years.
+
+The `newAdAccountData` object is then created to hold the data related to the ad account, such as:
+
+- `clientId`
+- `assistantId`
+- `metaBusinessId`
+- `metaBusinessName`
+- `accountId`
+- `accountName`
+- `accountStatus`
+- `amountSpent`
+- `tasks`
+- `balance`
+- `currency`
+- `isPrepayAccount`
+- `minAdSpend`
+- `minDailyBudget`
+- `fundingSource`
+- `disableReason`
+- `accountAge`
+- `isAssigned`
+- `status`
+- `owner`
+- `timezone`
+- `accountCreatedAt`
+
+### 6. Verifying Permissions:
+
+- It checks if the assistant has the required permissions for the business associated with the ad account using `findMetaPage`. If no permissions are found, it throws a `CustomError`.
+
+### 7. Assigning the Ad Account:
+
+- The `graphApiAxiosInstance` is used again to make an API call to Meta to assign the ad account to the assistant. The request is made with the `systemUserId` and `fbUserToken` to ensure the assistant has the correct permissions.
+
+```sh
+curl -X POST "https://graph.facebook.com/v22.0/${adAccountId}/assigned_users" \
+  -d "user=${systemUserId}" \
+  -d "tasks=MANAGE" \
+  -d "access_token=${fbUserToken}"
+```
+
+- If the assignment fails, an error is thrown.
+
+### 8. Upsert Ad Account Data:
+
+- After successfully assigning the ad account, the `newAdAccountData` is inserted or updated in the database using `upsertAdAccount`.
+
+### 9. Response:
+
+- If the operation is successful, it responds with the updated ad account data in the response body.
+- In case of errors, the handler logs the error, processes any specific Meta API errors, and sends an appropriate error message in the response.

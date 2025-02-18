@@ -1,0 +1,11 @@
+---
+title: "Fetch Web Meta Data"
+openapi: "POST /meta-ads/fetch-web-meta-data"
+---
+
+## Functionality Overview
+
+Fetch Web Meta Data
+
+1. Extract `assistantId, link` from req.body, throw error if any of them is missing.
+2. Make a get request to the `link` and return the response along with the link to the user.

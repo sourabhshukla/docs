@@ -1,0 +1,80 @@
+---
+title: "Sync Ad"
+openapi: "POST /meta-ads/sync-ad"
+---
+
+## Functionality Overview
+
+Calling this endpoint Syncs particular ad's data with the data provided by the META api.
+
+1. **Initial Data Fetching**
+
+- Extract `assistantId` and `_id`,which is the mongoId of the ad that we want to sync, from `req.body`, throw error if they are not present;
+- Get Ad Details From DB.
+- Fetch Assistant Details From DB using `assistantId` and fetch these fields
+
+  ```json
+  {
+    "fbConnectedBy": 1,
+    "freezedMetaPageId": 1,
+    "freezedMetaAdAccountId": 1,
+    "metaAdsCredit": 1,
+    "partnerId": 1,
+    "fbUserToken": 1,
+    "fbUserId": 1
+  }
+  ```
+
+- if the ad is a DRAFT ad then simply return the ad data fetched from DB.
+
+- Fetch advanced Targeting data for two categories `education_statuses`,`relationship_statuses`, this data is needed because when we later fetch advancedTargeting data of the ad their except for these 2 categories, for all other categories we get data in form of id and label but in case of these categories we would only get the id so we will need this data to find the label for that id. This will be the curl for fetching all possible lables for these 2 categories:
+
+```sh
+curl -X GET "https://graph.facebook.com/v22.0/{adAccountId}/targetingbrowse?limit_type={limitType}&access_token={systemUserAccessToken}&locale=en-US"
+```
+
+- NOTE: Keep in mind that mentioning `locale=en-US` is very important otherwise the resulting label name may come translated in some other language, which would not be the label user selected at the time of ad creation/updation.
+
+2. **Fetch Ad Details From Meta**
+
+Fetch Ad Account Details from Meta using this request.
+
+```sh
+curl -X GET "https://graph.facebook.com/v22.0/${adId}?access_token=${systemUserToken}&fields=${adsFields}&locale=en_US"
+```
+
+- where adsFields is this string
+
+```
+id,name,creative{id,name,body,call_to_action_type,image_url,link_url,object_type,object_url,thumbnail_url,title,object_story_spec,asset_feed_spec,video_id},insights.fields(clicks,cost_per_inline_link_click,cpm,cpp,ctr,date_start,date_stop,impressions,inline_link_clicks,inline_post_engagement,objective,reach,spend,unique_clicks,unique_inline_link_clicks,unique_outbound_clicks,quality_ranking,actions,engagement_rate_ranking).date_preset(maximum),campaign{id,name,objective,buying_type},adset{id,name,adlabels,adset_schedule,bid_adjustments,bid_amount,bid_constraints,bid_info,bid_strategy,billing_event,budget_remaining,daily_budget,daily_min_spend_target,daily_spend_cap,destination_type,effective_status,end_time,optimization_goal,promoted_object,status,targeting,start_time},status,bid_amount,effective_status,preview_shareable_link,issues_info
+```
+
+3. Fetch MetaTwoTier Document from DB using the assisatantId and fbUserId present in assistantData and check if the current ad is current ad is created through our aisensy platform or not.
+
+4. Now create an updated ad object, updated with the data received from META api, and also call the `metaAdsCreditDeduction` function if the ad was created though our aisensy platform. Here is the flow of `metaAdsCreditDeduction` function.
+
+- First we fetch the latest insight log of that particular ad from `MetaAdsInsightsLogs` collection, and check if the spend from insight logs from DB is greater than or equal to the spend we get from ads data we fetched from Meta api in step 4.
+
+  - If the spend from DB is greater than or equal to spend gotten form META api then do nothing.
+
+  - Else create a new log in `MetaAdsInsightsLogs` collection. Now there are 2 possiblities:
+
+  - If there were no previousInsightLogs then take the spend from the current log we just got by calling META api, add our own commission and then reduce the `metaAdsCredit` by the `spend` we got from api and then update the previous metaAdsCredit and the current updated metaAdsCredit in the `MetaAdsInsightsLogs` document.
+
+  - If there was some previousInsightLog then calculate the `deductionAmount` by subtracting the spend from DB from the insights we received from the api, add our own commission and then reduce the `metaAdsCredit` by the `spend` we got from api and then update the previous metaAdsCredit and the current updated metaAdsCredit in the `MetaAdsInsightsLogs` document.
+
+- Also keep in mind that the new `impressions`,`spend`,`clicks`,`reach` and `unique_clicks` of this ad are also updated in a new adAccountOject so that these values are also updated on an adAccount level.
+
+5. Keep in mind that the totalBudget and spend attribute in the updatedAdObject will also have our commisssion added if the ad was create through our aisensy platform. Also the label will be mapped and added to the ad object advancedTargets if the advancedTargets include targets of categories `education_statuses` or `relationship_statuses`.
+
+- Also if the ad is a video ad then this api is called for fetching the thumbnail_url of the video.
+
+```sh
+curl -X GET "https://graph.facebook.com/v22.0/{video_id}?fields=format&access_token={systemUserToken}"
+```
+
+6. We then fetch the totalMessages received for that particular ad using getTotalMessages method. Here is the flow for that:
+
+   - It takes 2 parameters `assisatantId` and `adId` and then makes an aggregate query on the `MetaAdAnalytics` collection and calulates the sum of all the messages received on that adId and return it, which we then add to the `totalMessages` attribute in the updatedAdObject.
+
+7. The updated Ad object and Ad account object is then written to DB and the new `adData` and `adAccountData` are then returned to the user.

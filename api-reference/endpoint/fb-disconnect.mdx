@@ -1,0 +1,77 @@
+---
+title: "Fb Disconnect"
+openapi: "POST /meta-ads/fb-disconnect"
+---
+
+## Functionality Overview
+
+1. **Retrieve Assistant Data**
+   - The system fetches the assistant details using `findOneLeanAssistant`.
+   - It specifically checks the `fbConnectedBy` field to determine which user connected Facebook.
+2. **Validate User Permissions**
+
+   - If the user attempting the disconnection does not have sufficient privileges (`power !== 2`), they are restricted.
+   - If the `fbConnectedBy` field exists and does not match the current user, access is denied.
+
+3. **Fetch and Remove Meta Ad Accounts**
+
+   - The system queries all Meta ad accounts linked to the assistant using `findMetaAdAccounts`.
+   - If there are assigned ad accounts, they are grouped by `metaBusinessId`.
+   - For each `metaBusinessId`, an API request is sent to Facebook Graph API to remove the business relationship using the following cURL request:
+     ```sh
+     curl -X DELETE "https://graph.facebook.com/v22.0/{AISENSY_BM_ID}/managed_businesses?existing_client_business_id={CLIENT_BM_ID}&access_token={USERS_ACCESS_TOKEN}"
+     ```
+   - Any errors encountered during this API request are logged.
+
+4. **Update Database Records**
+   - The status of all ad accounts linked to the assistant is updated using `updateAllAdAccounts`.
+   - The following fields are updated:
+     - `status: "deleted"`
+     - `isAssigned: false`
+     - `systemUserToken: ""`
+   - - The status of all linked Meta pages associated with the assistant is updated using `updateAllMetaPages`.
+
+- The following fields are updated:
+  - `status: "deleted"`
+  - `isAssigned: false`
+  - `systemUserToken: ""`. Each page is marked as `deleted`, set to unassigned, and its `systemUserToken` is cleared. This ensures that the pages can no longer be managed or accessed via the assistant's credentials, fully revoking their connection to the platform.
+
+5. **Update Assistant Information**
+
+   - The assistant’s details are modified using `updateAssistantReturnNew`.
+   - The following fields are reset to remove Facebook-related information:
+     - `fbConnected: false`
+     - `fbConnectedBy: ""`
+     - `selectedMetaPageId: ""`
+     - `selectedMetaAdAccountId: ""`
+     - `fbGrantedScopes: ""`
+     - `freezedMetaAdAccountId: ""`
+     - `freezedMetaPageId: ""`
+     - `adSetupDetails.isSetupCompleted: false`
+
+6. **Remove Facebook Permissions**
+
+   - Calls `removeFbPermissions` to revoke all granted permissions for the Facebook user (`fbUserId`) and partner (`partnerId`).
+   - The function iterates through a list of permission scopes and makes DELETE requests to revoke each permission individually using the following cURL request:
+     ```sh
+     curl -X DELETE "https://graph.facebook.com/v22.0/{fbUserId}/permissions/{permission}?access_token={access_token}&locale=en_US"
+     ```
+   - If the API request is successful, it records the removed permission; otherwise, it logs the error message.
+
+7. **Send Event Data**
+   - Sends disconnection event logs to LSQ using `sendDataToLSQLeadOnEvent`.
+   - The event payload includes:
+     - `{ Attribute: "mx_Meta_Ads", Value: "Facebook disconnected" }`
+   - A separate event is also logged to LSQ’s product event system using `sendDataToLSQProductOnEvent`, with the schema:
+     - `{ SchemaName: "mx_Custom_80", Value: "Facebook disconnected" }`
+
+## Dependencies
+
+- `findOneLeanAssistant` – Fetches assistant details.
+- `findMetaAdAccounts` – Retrieves assigned ad accounts.
+- `updateAllAdAccounts` – Updates ad account records.
+- `updateAllMetaPages` – Updates meta page records.
+- `updateAssistantReturnNew` – Updates assistant data.
+- `removeFbPermissions` – Revokes Facebook permissions.
+- `sendDataToLSQLeadOnEvent` – Sends event to LSQ system.
+- `sendDataToLSQProductOnEvent` – Logs disconnection event.

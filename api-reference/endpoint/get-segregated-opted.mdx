@@ -1,0 +1,21 @@
+---
+title: "Get Segregated Opted Out Count"
+openapi: "POST /meta-ads/get-segregated-opted"
+---
+
+# Functionality Overview
+
+Give count of opted out contacts from a give list of phone numbers.
+
+1. Extracts `userNumberArray, assistantId` from `req.body`.
+
+2. Create a mongo query, and then run an aggregate query on `Conversation` collection to get the totalCount of documents which passed the filter and then return this count to user.
+```json 
+   {
+      assistantId,
+      userNumber: {
+        $in: [...new Set(userNumberArray.map((i) => i.userNumber))],
+      },
+      optedIn: false,
+    }
+``

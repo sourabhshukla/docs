@@ -1,0 +1,45 @@
+---
+title: "Fetch Draft Meta Ad"
+openapi: "POST /meta-ads/fetch-draft-meta-ad"
+---
+
+## Functionality Overview
+
+This route retrieves draft Meta Ads for a given assistant within a specified ad account.
+
+### 1. Extracting Data:
+
+- **User Information**: The `clientId` is extracted from `req.user`.
+- **Request Body**: The following fields are extracted from `req.body`:
+  - `assistantId`: ID of the assistant.
+  - `adId`: (Optional) MongoDB ID of the specific draft ad to retrieve.
+
+### 2. Fetching Draft Ad:
+
+- **Single Draft Ad**:
+
+  - If `adId` is provided, the route calls `MetaAdDraftDb.findMetaAdDraft` with the query:
+    - `{ _id: adId, assistantId, clientId }`
+  - Returns the corresponding draft ad from DB if found.
+
+- **All Draft Ads**:
+  - If `adId` is not provided, the route calls `MetaAdDraftDb.findMetaAdDrafts` with the query:
+    - `{ assistantId, clientId, adStatus: "DRAFT" }`
+  - Returns all draft ads associated with the given assistant and client from DB.
+
+### 3. Response:
+
+- **Success**:
+  - Returns the retrieved draft ad(s) with a `200` status code.
+- **Failure**:
+  - If an error occurs, responds with a `500` status code and the error message.
+
+### Error Handling:
+
+- If either database call fails, the caught error is sent in the response with a `500` status code.
+
+### Notes:
+
+- Ensure that `assistantId` and `clientId` are valid and correspond to existing records.
+- When providing an `adId`, verify its format and existence in the database.
+- The returned draft ads will have an `adStatus` of `DRAFT`.

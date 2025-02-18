@@ -1,0 +1,71 @@
+---
+title: "Get Delivery Estimate Result"
+openapi: "POST /meta-ads/get-delivery-estimate-result"
+---
+
+## Functionality Overview
+
+This route retrieves the estimated delivery results for a Meta ad based on the provided targeting specifications.
+
+### 1. Extracting Data:
+
+- **Request Body**:
+  - `adAccountId`: ID of the ad account.
+  - `minAge`: Minimum age of the target audience.
+  - `maxAge`: Maximum age of the target audience.
+  - `gender`: Target audience gender.
+  - `geoLocation`: Target geographic location.
+  - `advanceTargets`: Advanced targeting options.
+  - `selectedPlatforms`: Platforms where the ad will be displayed.
+  - `assistantId`: ID of the assistant.
+
+### 2. Input Validation:
+
+- **Required Fields**:
+  - `adAccountId` and `assistantId` must be provided.
+- **GeoLocation Check**:
+  - If `geoLocation` is empty, it defaults to `{ countries: ["IN"] }`.
+
+### 3. Formatting Advanced Targeting:
+
+- **Process**:
+  - Iterates through the `advanceTargets` object.
+  - For `education_statuses` and `relationship_statuses`, maps to an array of `id`s.
+  - For other keys, maps each entry to an object containing the `id`.
+
+### 4. Constructing Targeting Specifications:
+
+- **Targeting Spec Object**:
+  - `age_min`, `age_max`: Age range.
+  - `genders`: Gender targeting.
+  - `geo_locations`: Geographic targeting.
+  - `flexible_spec`: Advanced targeting.
+  - `publisher_platforms`: Selected platforms.
+
+### 5. Meta API Call:
+
+**Endpoint**: `/delivery_estimate`
+
+**Meta API Call**:
+
+```sh
+curl -X GET "https://graph.facebook.com/v22.0/${adAccountId}/delivery_estimate" \
+  -H "Authorization: Bearer ${SYSTEM_USER_ACCESS_TOKEN}" \
+  -G \
+  --data-urlencode "optimization_goal=CONVERSATIONS" \
+  --data-urlencode "targeting_spec=${JSON.stringify(targetingSpecs)}"
+```
+
+### 6. Response Handling:
+
+- **Successful Response**:
+  - Sends the first element of the `data` array.
+- **Error Handling**:
+  - If the API returns a Meta error, constructs an error object with `error_user_title` and `error_user_msg`.
+  - If the error is unrecognized, returns a `500` status with the message `Unable to estimate`.
+
+### Notes:
+
+- Ensure that the `SYSTEM_USER_ACCESS_TOKEN` has the necessary permissions.
+- Confirm that the `targeting_spec` matches Meta's API requirements.
+- Check that `advanceTargets` and `geoLocation` are correctly formatted.

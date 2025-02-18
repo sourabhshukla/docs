@@ -1,0 +1,15 @@
+---
+title: "Select Ad Profile"
+openapi: "POST /meta-ads/select-ad-profile"
+---
+
+## Functionality Overview
+
+Select `pageId` and `adAccountId` for an assistant.
+
+1. Extract `assistantId, selectedMetaPageId, selectedMetaAdAccountId` from `req.body` and throw error if:
+
+   - If there is not `assistantId`.
+   - Neither `selectedMetaPageId` or `selectedMetaAdAccountId` is present.
+
+2. Update selectedMetaAdAccountId and/or selectedMetaPageId ,if they are present, in the assistant and return the updated assistant object to the user.

@@ -1,0 +1,12 @@
+---
+title: "Fetch Ad Account"
+openapi: "POST /meta-ads/fetch-ad-account"
+---
+
+## Functionality Overview
+
+Calling this endpoint fetches ad accounts belonging to the particular project/assistant.
+
+1. Extract `assisatantId` and `adAccountId` from `req.body`.
+
+2. Fetch a `adAccount` from DB which has `assistantId`,and `accountId` we received in request,and remove `systemUserToken` from them and send it to user.

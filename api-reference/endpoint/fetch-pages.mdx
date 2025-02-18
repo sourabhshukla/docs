@@ -1,0 +1,11 @@
+---
+title: "Fetch Pages"
+openapi: "POST /meta-ads/fetch-pages"
+---
+
+## Functionality Overview
+
+Fetch all valid page details for a `assistantId`.
+
+1. Extract `assistantId` from `req.body` and throw error if no `assistantId` was found.
+2. Fetch all pages which do not have "deleted" status do not have empty `pageAccessToken`, remove `systemUserToken` and `pageAccessToken` and send the pages data to the user.

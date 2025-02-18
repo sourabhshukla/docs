@@ -1,0 +1,93 @@
+---
+title: "Create Draft Meta Ad"
+openapi: "POST /meta-ads/create-draft-meta-ad"
+---
+
+## Functionality Overview
+
+This route creates a draft Meta Ad for a given assistant within a specified ad account.
+
+### 1. Extracting Data:
+
+- **User Information**: The `clientId` is extracted from `req.user`.
+- **Request Body**: The following fields are extracted from `req.body`:
+  - `adDescription`: Description of the ad.
+  - `adName`: Name of the ad.
+  - `imageUrl`: URL of the image.
+  - `adId`: MongoDB ID (if updating an existing ad).
+  - `adAccountId`: ID of the ad account.
+  - `adStopDate`: Stop date of the ad.
+  - `adStartDate`: Start date of the ad.
+  - `assistantId`: ID of the assistant.
+  - `gender`: Target audience gender.
+  - `geoLocation`: Target geo-location.
+  - `maxAge`: Maximum age of the target audience.
+  - `minAge`: Minimum age of the target audience.
+  - `headline`: Headline for the ad.
+  - `videoUrl`: URL of the video.
+  - `advanceTargets`: Advanced targeting options.
+  - `duration`: Duration of the ad.
+  - `selectedPlatforms`: Platforms for ad delivery.
+  - `dailyBudget`: Daily budget for the ad.
+
+### 2. Assistant Validation:
+
+- **Retrieve Assistant Info**: Validates the assistant's existence and connection to Facebook.
+- **Currency Check**: Determines if the assistant uses a currency other than `USD` to set `isChildBMAd`, if the currency is `USD` then `isChildBMAd` is set to `false` when creating the ad object.
+
+### 3. Business Validation:
+
+- **Find Child Business**: Retrieves the associated child business using the `findOneMetaAdsTwoTier` function.
+
+### 4. Preparing the Draft Data:
+
+- **Draft Object**: Constructs the `mongoData` object with the following fields:
+  - `clientId`: ID of the client.
+  - `dailyBudget`: Converted to the smallest currency unit (multiplied by 100).
+  - `geoLocation`: Provided location details.
+  - `gender`: Target audience gender.
+  - `minAge`: Minimum target age.
+  - `maxAge`: Maximum target age.
+  - `platforms`: Selected platforms.
+  - `adStopDate`: Stop date.
+  - `adStartDate`: Start date.
+  - `assistantId`: Assistant's ID.
+  - `adAccountId`: ID of the ad account.
+  - `metaBusinessId`: Business ID of the child business.
+  - `metaPageId`: Page ID of the child business.
+  - `adDescription`: Ad description.
+  - `imageUrl`: Image URL.
+  - `videoUrl`: Video URL.
+  - `adName`: Name of the ad.
+  - `headline`: Headline text.
+  - `duration`: Duration of the ad.
+  - `advanceTargets`: Advanced targeting configuration.
+  - `adStatus`: Set to `DRAFT`.
+  - `adEffectiveStatus`: Set to `DRAFT`.
+  - `isChildBMAd`: Boolean indicating whether the ad belongs to a child business manager, it is set to false if the `currency` is `USD`.
+
+### 5. Database Interaction:
+
+- **Update Existing Draft**:
+
+  - Checks if `adId` exists.
+  - If yes, invokes the `updateMetaAd` function with the provided `adId` and `mongoData` and updates the particular ad in DB.
+  - Responds with the updated ad document.
+
+- **Create New Draft**:
+  - If `adId` is not provided, invokes the `createMetaAd` function with `mongoData` and creates a new ad `only` in the DB.
+  - Responds with the newly created ad document.
+
+### 6. Response:
+
+- If the operation is successful, it responds with the created or updated draft ad data.
+
+### 7. Error Handling:
+
+- **Database Errors**: If `findOneLeanAssistant`, `findOneMetaAdsTwoTier`, `createMetaAd`, or `updateMetaAd` throw an error, it responds with a `500` status code and the corresponding error message.
+
+### Notes:
+
+- Ensure that the `dailyBudget` is correctly calculated and passed in the smallest currency unit.
+- Make sure the `geoLocation` object follows the required Meta format.
+- The `advanceTargets` structure should align with Meta's targeting requirements.

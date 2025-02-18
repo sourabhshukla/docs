@@ -1,0 +1,109 @@
+---
+title: "Create Meta Ad Set"
+openapi: "POST /meta-ads/create-meta-ad-set"
+---
+
+## Functionality Overview
+
+This route creates a new Meta Ad Set for a given assistant within a specified ad campaign.
+
+### 1. Extracting Data:
+
+- **User Information**: The `clientId` is extracted from `req.user` or `req.body`.
+- **Request Body**: The following fields are extracted from `req.body`:
+  - `name`: The name of the ad set.
+  - `optimizationGoal`: The optimization goal for the ad set.
+  - `billingEvent`: The billing event (e.g., `IMPRESSIONS`).
+  - `bidAmount`: The bid amount for the ad set.
+  - `dailyBudget`: The daily budget for the ad set.
+  - `adCampaignId`: The ID of the associated ad campaign.
+  - `targeting`: Targeting information for the ad set.
+  - `startTime`: Start time for the ad set.
+  - `status`: The status of the ad set.
+  - `assistantId`: The ID of the assistant initiating the request.
+  - `adAccountId`: The ID of the ad account.
+
+### 2. Business Validation:
+
+- **Find Child Business**: Uses `findOneMetaAdsTwoTier` to retrieve the child business details.
+- **Error Handling**: If the business is not found, a `CustomError` with status code `400` is thrown.
+
+### 3. Ad Set Creation:
+
+- **API Call**: Invokes the `createAdSet` function to create the ad set.
+- **Parameters**:
+  - `name`, `optimizationGoal`, `billingEvent`, `dailyBudget`, `adCampaignId`, `targeting`, `startTime`, `status`, `childSystemUserToken`, `adAccountId`, `pageId`, `whatsappNumber`, `destination_type`, `endTime`.
+- **Error Handling**: If the Meta API call fails, a `CustomError` with status code `400` is thrown.
+
+**Meta API Call**:
+
+```sh
+curl -X POST "https://graph.facebook.com/v22.0/${adAccountId}/adsets" \
+  -H "Authorization: Bearer <CHILD_SYSTEM_USER_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "<AD_SET_NAME>",
+    "optimization_goal": "<OPTIMIZATION_GOAL>",
+    "billing_event": "<BILLING_EVENT>",
+    "daily_budget": "<DAILY_BUDGET>",
+    "campaign_id": "<AD_CAMPAIGN_ID>",
+    "targeting": {"geo_locations": {"countries": ["US"]}},
+    "start_time": "<START_TIME>",
+    "status": "<STATUS>",
+    "bid_strategy": "LOWEST_COST_WITHOUT_CAP",
+    "destination_type": "WHATSAPP",
+    "promoted_object": {
+      "page_id": "<PAGE_ID>",
+      "whatsapp_phone_number": "<WHATSAPP_NUMBER>"
+    },
+    "end_time": "<END_TIME>",
+    "fields": "name,optimization_goal,billing_event,daily_budget,campaign_id,targeting,start_time,status"
+  }'
+```
+
+### 4. Explanation of `createAdSet`:
+
+- **Function Overview**: This function handles the creation of an ad set under a specified ad campaign.
+- **Parameters**:
+  - `name`: Name of the ad set.
+  - `optimizationGoal`: Optimization goal (e.g., `REACH`, `CONVERSIONS`).
+  - `billingEvent`: Event for billing (e.g., `IMPRESSIONS`).
+  - `dailyBudget`: Daily budget amount.
+  - `adCampaignId`: ID of the associated ad campaign.
+  - `targeting`: Targeting information.
+  - `startTime`: Start time of the ad set.
+  - `status`: Status of the ad set (`ACTIVE`, `PAUSED`).
+  - `childSystemUserToken`: Access token for the system user.
+  - `adAccountId`: ID of the ad account.
+  - `destination_type`: The destination type (`WHATSAPP`).
+  - `pageId`: ID of the promoted page.
+  - `whatsappNumber`: The WhatsApp number to be promoted.
+  - `endTime`: End time for the ad set.
+- **Process**:
+  - Constructs a POST request to the Facebook Graph API endpoint `/{adAccountId}/adsets`.
+  - Sends the ad set details along with the `childSystemUserToken`.
+  - Extracts information such as `name`, `optimization_goal`, `billing_event`, `daily_budget`, `campaign_id`, `targeting`, `start_time`, and `status`.
+  - Handles any errors by returning an error object.
+
+### 5. Database Entry:
+
+- **Create Ad Set**: Uses the `createMetaAdSet` function to insert the new ad set into the database.
+- **Fields Stored**:
+  - `assistantId`, `clientId`, `name`, `optimizationGoal`, `billingEvent`, `bidAmount`, `dailyBudget`, `adCampaignId`, `targeting`, `startTime`, `status`, `adAccountId`, `adSetId`.
+- **Error Handling**: If the database insertion fails, a `CustomError` with status code `400` is thrown.
+
+### 6. Response:
+
+- If the operation is successful, it responds with:
+  - `success`: Boolean indicating success.
+  - `adSet`: The created ad set details.
+
+### 7. Error Handling:
+
+- **Meta API Errors**: Meta-specific errors are processed with `handleMetaError`.
+- **Other Errors**: Errors without a specific code are returned with a `500` status and the corresponding error message.
+
+### Notes:
+
+- Ensure the `childSystemUserToken` has the necessary permissions.
+- The `optimizationGoal` and `billingEvent` must match Meta's supported values.

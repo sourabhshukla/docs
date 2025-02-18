@@ -1,0 +1,42 @@
+---
+title: "Update ad status"
+openapi: "POST /meta-ads/update-ad-status"
+---
+
+## Functionality Overview
+
+Updates status of ad
+
+1. Extract `_id, adAccountId, adId, assistantId, status` from `req.body` and throw error if any of them is not present.
+
+2. Fetch assistant Data from DB and throw error if not present.
+
+3. If assistant is present then check if these conditions hold true or not, if yes then throw an error `You don't have sufficient credits to active this ad`.
+
+```
+ if (
+      (assistantData.metaAdsCredit < 10000000 && status === "ACTIVE") ||
+      (!assistantData.metaAdsCredit && status === "ACTIVE")
+    ) {
+      throw new CustomError(
+        404,
+        "ERR404",
+        "You don't have sufficient credits to active this ad"
+      );
+    }
+```
+
+4. Fetch `systemUserToken` from DB from `MetaAdAccounts` collection and update the ad status using this api.
+
+```sh
+curl -X POST "https://graph.facebook.com/v22.0/{adId}" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "status": "{status}",
+           "access_token": "{systemUserToken}",
+           "locale": "en_US"
+         }'
+
+```
+
+5. Update the `adStatus` and `adEffectiveStatus` in DB also and then return the updated ad object to the user.

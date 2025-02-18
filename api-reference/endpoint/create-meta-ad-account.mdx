@@ -1,0 +1,92 @@
+---
+title: "Create Meta Ad Account"
+openapi: "POST /meta-ads/create-meta-ad-account"
+---
+
+## Functionality Overview
+
+This route creates a new Meta Ad Account for a given assistant within a specified business.
+
+### 1. Extracting Data:
+
+- **User Information**: The `clientId` is extracted from `req.user` or `req.body`.
+- **Request Body**: The following fields are extracted from `req.body`:
+  - `childBusinessId`: The ID of the child business under which the account is created.
+  - `adAccountName`: The name of the new ad account.
+  - `timezoneId`: The timezone ID for the ad account.
+  - `currency`: The currency for the ad account.
+  - `assistantId`: The ID of the assistant initiating the request.
+
+### 2. Business Validation:
+
+- **Find Child Business**: Uses `findOneMetaAdsTwoTier` to retrieve the child business details.
+- **Error Handling**: If the business is not found, a `CustomError` with status code `400` is thrown.
+
+### 3. Ad Account Creation:
+
+- **API Call**: Invokes the `createChildAdAccount` function to create the ad account.
+- **Parameters**:
+  - `childBusinessId`, `adAccountName`, `currency`, `timezoneId`, `endAdvertiserId`, `fundingId`, `childSystemUserToken`, `systemUserId`.
+- **Error Handling**: If the Meta API call fails, a `CustomError` with status code `400` is thrown.
+
+**Meta API Call**:
+
+```sh
+curl -X POST "https://graph.facebook.com/v22.0/${childBusinessId}/adaccount" \
+  -H "Authorization: Bearer <CHILD_SYSTEM_USER_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "<AD_ACCOUNT_NAME>",
+    "currency": "<CURRENCY>",
+    "timezone_id": "<TIMEZONE_ID>",
+    "end_advertiser": "<END_ADVERTISER_ID>",
+    "media_agency": "NONE",
+    "partner": "NONE",
+    "funding_id": "<FUNDING_SOURCE_ID>",
+    "fields": "id,name,business,user_tasks,account_status,amount_spent,balance,created_time,currency,is_prepay_account,min_campaign_group_spend_cap,min_daily_budget,timezone_name,age,disable_reason,funding_source,owner",
+    "status": "ACTIVE"
+  }'
+```
+
+### 4. Explanation of `createChildAdAccount`:
+
+- **Function Overview**: This function handles the creation of an ad account under a specified child business.
+- **Parameters**:
+  - `childBusinessId`: ID of the child business.
+  - `adAccountName`: Name of the ad account.
+  - `currency`: Currency code (e.g., `INR`).
+  - `timezoneId`: Timezone ID.
+  - `endAdvertiserId`: ID of the associated end advertiser.
+  - `mediaAgency`: Media agency information (default: `NONE`).
+  - `partnerId`: Partner ID (default: `NONE`).
+  - `fundingId`: Funding source ID.
+  - `childSystemUserToken`: Access token for the child system user.
+  - `systemUserId`: ID of the system user.
+- **Process**:
+  - Constructs a POST request to the Facebook Graph API endpoint `/{childBusinessId}/adaccount`.
+  - Sends the ad account details along with the `childSystemUserToken`.
+  - Extracts key information like `id`, `name`, `business`, `user_tasks`, `account_status`, `amount_spent`, `balance`, `created_time`, `currency`, `is_prepay_account`, `min_campaign_group_spend_cap`, `min_daily_budget`, `timezone_name`, `age`, `disable_reason`, `funding_source`, `owner`.
+  - Handles any errors by returning an error object.
+
+### 5. Database Entry:
+
+- **Create Ad Account**: Uses the `createAdAccount` function to insert the new ad account into the database.
+- **Fields Stored**:
+  - `clientId`, `assistantId`, `metaBusinessId`, `metaBusinessName`, `accountId`, `accountName`, `accountStatus`, `amountSpent`, `tasks`, `balance`, `currency`, `isPrepayAccount`, `minAdSpend`, `minDailyBudget`, `fundingSource`, `disableReason`, `accountAge`, `isAssigned`, `status`, `owner`, `timezone`, `systemUserAccessToken`, `accountCreatedAt`.
+- **Error Handling**: If the database insertion fails, a `CustomError` with status code `400` is thrown.
+
+### 6. Response:
+
+- If the operation is successful, it responds with:
+  - `success`: Boolean indicating success.
+  - `adAccount`: The created ad account details.
+
+### 7. Error Handling:
+
+- **Meta API Errors**: Meta-specific errors are processed with `handleMetaError`.
+- **Other Errors**: Errors without a specific code are returned with a `500` status and the corresponding error message.
+
+### Notes:
+
+- Ensure the `childSystemUserToken` has the necessary permissions.
+- The currency and timezone must match Meta's supported values.

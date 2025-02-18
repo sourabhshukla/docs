@@ -1,0 +1,17 @@
+---
+title: "Location Search"
+openapi: "POST /meta-ads/location-search"
+---
+
+# Functionality Overview
+
+Searches for location usint META api.
+
+1. Extract `adAccountId, assistantId, text` from `req.body` where `text` contains the location to be searched and throw error if any of the fields is not present.
+
+2. Call this api to search of locations and return the data to user.
+
+```sh
+curl -X GET "https://graph.facebook.com/v22.0/search?type={type}&q={text}&access_token={SYSTEM_USER_ACCESS_TOKEN}&place_fallback=true&locale=en_US"
+
+```

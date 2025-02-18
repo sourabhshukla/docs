@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "CTWA Documentation",
   "colors": {
     "primary": "#16A34A",
     "light": "#07C983",
@@ -15,11 +15,7 @@
         "groups": [
           {
             "group": "Get Started",
-            "pages": [
-              "introduction",
-              "quickstart",
-              "development"
-            ]
+            "pages": ["introduction", "quickstart", "development"]
           },
           {
             "group": "Essentials",
@@ -39,16 +35,56 @@
         "groups": [
           {
             "group": "API Documentation",
-            "pages": [
-              "api-reference/introduction"
-            ]
+            "pages": ["api-reference/introduction"]
           },
           {
             "group": "Endpoint Examples",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete"
+              "api-reference/endpoint/fb-connect",
+              "api-reference/endpoint/fb-disconnect",
+              "api-reference/endpoint/sync-meta-ad-account",
+              "api-reference/endpoint/fetch-ad-accounts",
+              "api-reference/endpoint/fetch-ad-account",
+              "api-reference/endpoint/sync-ad",
+              "api-reference/endpoint/fetch-ads-accountId",
+              "api-reference/endpoint/fetch-ads",
+              "api-reference/endpoint/fetch-ad",
+              "api-reference/endpoint/create-ad",
+              "api-reference/endpoint/fetch-ctw-ads",
+              "api-reference/endpoint/new-fetch-ctw-ads",
+              "api-reference/endpoint/update-ad-status",
+              "api-reference/endpoint/location-search",
+              "api-reference/endpoint/target-suggestions",
+              "api-reference/endpoint/target-search",
+              "api-reference/endpoint/fetch-ad-analytics",
+              "api-reference/endpoint/opt-meta-audience-count",
+              "api-reference/endpoint/get-segregated-opted",
+              "api-reference/endpoint/fetch-ad-graph-data",
+              "api-reference/endpoint/update-whatsapp-number",
+              "api-reference/endpoint/link-whatsapp-number-with-page",
+              "api-reference/endpoint/fetch-pages",
+              "api-reference/endpoint/fetch-page",
+              "api-reference/endpoint/select-ad-profile",
+              "api-reference/endpoint/fetch-web-meta-data",
+              "api-reference/endpoint/update-meta-ad-details",
+              "api-reference/endpoint/assign-meta-page",
+              "api-reference/endpoint/assign-ad-account",
+              "api-reference/endpoint/setup-business-account",
+              "api-reference/endpoint/fetch-meta-ad-setup",
+              "api-reference/endpoint/create-meta-ad-account",
+              "api-reference/endpoint/create-meta-ad-campaign",
+              "api-reference/endpoint/fetch-meta-ad-campaign",
+              "api-reference/endpoint/fetch-meta-ad-set",
+              "api-reference/endpoint/create-meta-ad-set",
+              "api-reference/endpoint/fetch-meta-ad-creative",
+              "api-reference/endpoint/create-meta-ad-creative",
+              "api-reference/endpoint/create-meta-ad",
+              "api-reference/endpoint/edit-meta-ad",
+              "api-reference/endpoint/create-draft-meta-ad",
+              "api-reference/endpoint/fetch-draft-meta-ad",
+              "api-reference/endpoint/get-delivery-estimate-result",
+              "api-reference/endpoint/export-ad-data-new",
+              "api-reference/endpoint/create-page"
             ]
           }
         ]

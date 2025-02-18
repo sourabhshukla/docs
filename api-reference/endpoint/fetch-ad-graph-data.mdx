@@ -1,0 +1,16 @@
+---
+title: "Fetch Ad Graph Data"
+openapi: "POST /meta-ads/fetch-ad-graph-data"
+---
+
+# Functionality Overview
+
+Fetch Analytics data of the particular ad.
+
+1. Extract `adId, assisatantId, startDate, endDate` from `req.body`, throw error if `adId` or `assisatantId` is not present.
+
+2. Now if `startDate` is present then set time of the `startDate` object to start of day, if `startDate` is not present then set `startDate` to start of current date. Similarly for `endDate` also.
+
+3. Now check if the `startDate` and `endDate` are valid, otherwise throw error.
+
+4. Now the ad Analytics data from `MetaAdAnalytics` collection in DB using `adId`, `assisatantId` and `createdAt` between the `startDate` and `endDate` and return the data to the user.

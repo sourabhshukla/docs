@@ -1,0 +1,104 @@
+---
+title: "Sync Meta Ad Account"
+openapi: "POST /meta-ads/sync-meta-ad-account"
+---
+
+## Functionality Overview
+
+Calling this endpoint Syncs Ad account data as well as all data of ads in that ad account
+
+1. **Initial Data Fetching**
+
+- Extract `assistantId` and `adAccountId` from `req.body`, throw error if they are not present;
+- Get Ad Account Details belonging to the `assitantId` and `adAccountId` and fetch these fields `systemUserToken`, `accountId`, `impressions`, `spend` `clicks`, `reach`, `uniqueClicks`, `assistantId`, `clientId` of the Ad Account form DB.
+- Fetch Assistant Details From DB using `assistantId` and fetch these fields
+
+  ```json
+  {
+    "fbConnectedBy": 1,
+    "freezedMetaPageId": 1,
+    "freezedMetaAdAccountId": 1,
+    "metaAdsCredit": 1,
+    "partnerId": 1,
+    "fbUserToken": 1,
+    "fbUserId": 1
+  }
+  ```
+
+  - Fetch Two Tier Account Details From DB
+
+  ```javscript
+  const [childBusinessError, childBusiness] = await findOneMetaAdsTwoTier({
+      assistantId,
+      userId: assistantData?.fbUserId,
+  });
+  ```
+
+  - Check If Ad Account is an Child Business Ad Account.
+
+  ```javascript
+  const childBMADAccountId = childBusiness?.adAccountId;
+  const isChildBM = childBMADAccountId === adAccountId;
+  ```
+
+2. **Fetch Ad Account Details From Meta**
+
+Fetch Ad Account Details from Meta using this request.
+
+```sh
+curl -X GET "https://graph.facebook.com/v22.0/${accountId}?access_token=${systemUserToken}&fields=${adAccountFields}&locale=en_US"
+```
+
+Where these are the adAccountFields: `id`, `name`, `business`, `user_tasks`, `account_status`, `amount_spent`, `balance`, `created_time`, `currency`, `is_prepay_account`, `min_campaign_group_spend_cap`, `min_daily_budget`, `timezone_name`, `age`, `disable_reason`, `funding_source`, `owner`, `insights.fields(impressions`,`clicks`,`reach`,`unique_clicks`,`spend).date_preset(maximum)`
+
+3. **Fetch Ads From DB**
+   Fetch ads from DB using belonging to assistantId and adAccountId provided and the adStatus should not be `NONE`, and these fields are selected `adId`, `adStatus`, `uniqueClicks`, `reach`, `clicks`, `spend`, `impressions`, `geoLocation`.
+
+4. **Fetch Ads Data from Meta**
+
+- Filter the ads we fetched from DB where adId is not null and get there adIds, this ensures that we do not include `DRAFT Ads` as they don't have adIds.
+- Now make batch requests of size=50 to fetch Ad details from Meta using this api.
+
+```sh
+curl -G "https://graph.facebook.com/v22.0" \
+     --data-urlencode "ids=[${batch}]" \
+     --data-urlencode "access_token=${systemUserToken}" \
+     --data-urlencode "fields=${adsFields}" \
+     --data-urlencode "locale=en_US"
+```
+
+- where adsFields is this string
+
+```
+id,name,creative{id,name,body,call_to_action_type,image_url,link_url,object_type,object_url,thumbnail_url,title,object_story_spec,asset_feed_spec,video_id},insights.fields(clicks,cost_per_inline_link_click,cpm,cpp,ctr,date_start,date_stop,impressions,inline_link_clicks,inline_post_engagement,objective,reach,spend,unique_clicks,unique_inline_link_clicks,unique_outbound_clicks,quality_ranking,actions,engagement_rate_ranking).date_preset(maximum),campaign{id,name,objective,buying_type},adset{id,name,adlabels,adset_schedule,bid_adjustments,bid_amount,bid_constraints,bid_info,bid_strategy,billing_event,budget_remaining,daily_budget,daily_min_spend_target,daily_spend_cap,destination_type,effective_status,end_time,optimization_goal,promoted_object,status,targeting,start_time},status,bid_amount,effective_status,preview_shareable_link,issues_info
+```
+
+5. Now a new ad object is created with updated data from meta, only catch being that while creating new ad object aisensy commision is also added in dailyBudget and totalBudget if the ads was created through our aisensy platform, and then a mongoUpdate object is created, if the ad was not a DRAFT ad, with this new ad object and pushed into an array, so that we can update all the ads in a single write operation.
+
+- NOTE: Along with this process on more object is also maintained which holds `impressions`,`spend`,`clicks`,`unique_clicks` and `reach` at the ad account level by aggregating the corresponding attributes from the ads of the ad account.
+
+6. While creating a new ad object, if the ad was created through our `Aisensy` platform, one more operation is done using `metaAdsCreditDeduction` function, Here is the flow of `metaAdsCreditDeduction` function.
+
+- First we fetch the latest insight log of that particular ad from `MetaAdsInsightsLogs` collection, and check if the spend from insight logs from DB is greater than or equal to the spend we get from ads data we fetched from Meta api in step 4.
+
+  - If the spend from DB is greater than or equal to spend gotten form META api then do nothing.
+
+  - Else create a new log in `MetaAdsInsightsLogs` collection. Now there are 2 possiblities:
+
+  - If there were no previousInsightLogs then take the spend from the current log we just got by calling META api, add our own commission and then reduce the `metaAdsCredit` by the `spend` we got from api and then update the previous metaAdsCredit and the current updated metaAdsCredit in the `MetaAdsInsightsLogs` document.
+
+  - If there was some previousInsightLog then calculate the `deductionAmount` by subtracting the spend from DB from the insights we received from the api, add our own commission and then reduce the `metaAdsCredit` by the `spend` we got from api and then update the previous metaAdsCredit and the current updated metaAdsCredit in the `MetaAdsInsightsLogs` document.
+
+7. Now we fetch the last spend done on the ad account in last 30 days using this meta api:
+
+```sh
+curl -X GET "https://graph.facebook.com/v22.0/{accountId}/insights?access_token={systemUserToken}&fields=spend&locale=en_US&date_preset=last_30d"
+
+```
+
+8. A new adAccount object is formed with updated values of these attributes `impressions`,`spend`,`clicks`,`unique_clicks`, `reach`,`amountSpent`,`averageDailySpend`.
+
+- `averageDailySpend` is calculateed using the data we got in step 7 and our commision is also then added to this, if the ad was created through our aisensy platform.
+- In the `amountSpent` attribute our commision is also added if the ad was created through our aisensy platform.
+
+9. Now all the adUpdate and adAccountUpdate operations are done, and updated data is written to DB and updated adAccountData is sent to the user.

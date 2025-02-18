@@ -1,0 +1,17 @@
+---
+title: "Target Suggestions"
+openapi: "POST /meta-ads/target-suggestions"
+---
+
+# Functionality Overview
+
+Returns additional audiences you can target based on a few selected audiences you provide.
+
+1. Extract `assistantId, targetList` from `req.body` and throw error if any of them is not present.
+
+2. Call this meta api and sent the data to user.
+
+```sh
+curl -X GET "https://graph.facebook.com/v22.0/{AISENSY_AD_ACCOUNT_ID}/targetingsuggestions?objective={objective}&targeting_list={targetList}&access_token={SYSTEM_USER_ACCESS_TOKEN}&locale=en_US"
+
+```

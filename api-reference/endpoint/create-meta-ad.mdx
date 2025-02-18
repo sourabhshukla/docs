@@ -1,0 +1,204 @@
+---
+title: "Create Meta Ad"
+openapi: "POST /meta-ads/create-meta-ad"
+---
+
+## Functionality Overview
+
+This route creates a new Meta Ad for a given assistant within a specified ad account.
+
+### 1. Extracting Data:
+
+- **User Information**: The `clientId` is extracted from `req.user`.
+- **Request Body**: The following fields are extracted from `req.body`:
+  - `adId`: ID of the ad.
+  - `adDescription`: Description of the ad.
+  - `adName`: Name of the ad.
+  - `imageUrl`: URL of the image.
+  - `adAccountId`: ID of the ad account.
+  - `assistantId`: ID of the assistant.
+  - `assistantName`: Name of the assistant.
+  - `gender`: Target audience gender.
+  - `geoLocation`: Target audience location.
+  - `maxAge`: Maximum target age.
+  - `minAge`: Minimum target age.
+  - `headline`: Headline for the ad.
+  - `videoUrl`: URL of the video.
+  - `advanceTargets`: Advanced targeting options.
+  - `dailyBudget`: Daily budget for the ad.
+  - `adStartDate`: Start date for the ad.
+  - `adStopDate`: Stop date for the ad.
+  - `selectedPlatforms`: Platforms for ad delivery.
+
+### 2. Assistant Validation:
+
+- **Retrieve Assistant Info**: Validates the assistant's existence and connection to Facebook.
+- **Calculate Commission**: Determines commission percentage based on the assistant's partner ID.
+
+### 3. Business and Page Validation:
+
+- **Find Child Business**: Retrieves the associated child business.
+- **Find Meta Page**: Validates the associated Meta page.
+- **Extract WhatsApp Number**: Extracts the WhatsApp number from the Meta page.
+
+### 4. Ad Campaign Creation:
+
+- **Function**: `createAdCampaign`
+- **Parameters**:
+  - `name`, `objective`, `status`, `adAccountId`, `childSystemUserToken`.
+- **Process**:
+  - Sends a POST request to `/{adAccountId}/campaigns`.
+  - Creates a campaign with the provided name, status, and objective.
+  - Stores the campaign data upon success.
+- **Error Handling**: Catches and returns any errors.
+
+**Meta API Call**:
+
+```sh
+curl -X POST "https://graph.facebook.com/v22.0/${adAccountId}/campaigns" \
+  -H "Authorization: Bearer <CHILD_SYSTEM_USER_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "<CAMPAIGN_NAME>",
+    "objective": "<OBJECTIVE>",
+    "status": "<STATUS>",
+    "special_ad_categories": []
+  }'
+```
+
+### 5. Ad Set Creation:
+
+- **Function**: `createAdSet`
+- **Parameters**: Includes `name`, `optimizationGoal`, `billingEvent`, `dailyBudget`, `adCampaignId`, `targeting`, `startTime`, `status`, `childSystemUserToken`, `adAccountId`, `destination_type`, `pageId`, `endTime`, `whatsappNumber`.
+- **Process**:
+  - Sends a POST request to `/{adAccountId}/adsets`.
+  - Formats geo-location using `formatGeoLocation`.
+  - Creates the ad set and returns the result.
+- **Error Handling**: Catches and returns any errors.
+
+**Meta API Call**:
+
+```sh
+curl -X POST "https://graph.facebook.com/v22.0/${adAccountId}/adsets" \
+  -H "Authorization: Bearer <CHILD_SYSTEM_USER_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "<AD_SET_NAME>",
+    "optimization_goal": "<OPTIMIZATION_GOAL>",
+    "billing_event": "<BILLING_EVENT>",
+    "daily_budget": "<DAILY_BUDGET>",
+    "campaign_id": "<AD_CAMPAIGN_ID>",
+    "targeting": {"geo_locations": {"countries": ["US"]}},
+    "start_time": "<START_TIME>",
+    "status": "ACTIVE",
+    "destination_type": "WHATSAPP",
+    "promoted_object": {"page_id": "<PAGE_ID>", "whatsapp_phone_number": "<WHATSAPP_NUMBER>"}
+  }'
+```
+
+### 6. Explanation of `formatGeoLocation`:
+
+- **Function Overview**: Formats geo-location data for Meta's API.
+- **Process**:
+  - Accepts a `geoLocation` object.
+  - Removes `country_name` and `type` fields from each `place`.
+  - Returns the formatted geo-location.
+
+### 7. Explanation of `formattedAdvanceTargets`:
+
+- **Function Overview**: Formats advanced targeting options for Meta's API.
+- **Process**:
+  - Iterates over the `advanceTargets` object.
+  - If a key is `education_statuses` or `relationship_statuses`, maps the values to an array of `id`s.
+  - For other keys, maps the values to an array of objects with `id` fields.
+  - Returns the formatted object.
+
+### 8. Ad Creative Creation:
+
+- **Function**: `createAdCreatives`
+- **Parameters**: Includes `name`, `pageId`, `imageUrl`, `childSystemUserToken`, `adAccountId`, `message`, `description`, `videoUrl`, `headline`, `shadowInstagramPageId`.
+- **Process**:
+  - Constructs an `object_story_spec` based on media type.
+  - Calls `uploadAdMedia` if a video is provided.
+  - Sends a POST request to `/{adAccountId}/adcreatives`.
+- **Error Handling**: Catches and returns any errors.
+
+**Meta API Call**:
+
+```sh
+curl -X POST "https://graph.facebook.com/v22.0/${adAccountId}/adcreatives" \
+  -H "Authorization: Bearer <CHILD_SYSTEM_USER_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "<AD_CREATIVE_NAME>",
+    "object_story_spec": {
+      "page_id": "<PAGE_ID>",
+      "link_data": {
+        "link": "https://api.whatsapp.com/send",
+        "message": "<MESSAGE>",
+        "picture": "<IMAGE_URL>",
+        "call_to_action": {
+          "type": "WHATSAPP_MESSAGE",
+          "value": {"app_destination": "WHATSAPP"}
+        }
+      }
+    }
+  }'
+```
+
+### 9. Explanation of `uploadAdMedia`:
+
+- **Function Overview**: Uploads media files for ad creatives.
+- **Process**:
+  - Prepares a `FormData` object with media details.
+  - Sends a POST request to `/{adAccountId}/advideos`.
+  - Returns the media ID if successful.
+
+**Meta API Call**:
+
+```sh
+curl -X POST "https://graph.facebook.com/v22.0/${adAccountId}/advideos" \
+  -F "title=<TITLE>" \
+  -F "file_url=<MEDIA_URL>" \
+  -F "access_token=<ACCESS_TOKEN>" \
+  -F "locale=en_US"
+```
+
+### 10. Ad Creation:
+
+- **Function**: `createChildBMAd`
+- **Parameters**: Includes `name`, `adSetId`, `adCreativityId`, `status`, `childSystemUserToken`, `adAccountId`.
+- **Process**:
+  - Sends a POST request to `/{adAccountId}/ads`.
+  - Links the ad set with the ad creative.
+- **Error Handling**: Catches and returns any errors.
+
+**Meta API Call**:
+
+```sh
+curl -X POST "https://graph.facebook.com/v22.0/${adAccountId}/ads" \
+  -H "Authorization: Bearer <CHILD_SYSTEM_USER_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "<AD_NAME>",
+    "adset_id": "<AD_SET_ID>",
+    "creative": {"creative_id": "<AD_CREATIVE_ID>"},
+    "status": "ACTIVE"
+  }'
+```
+
+### 11. Response:
+
+- If the operation is successful, it responds with the created ad's details.
+
+### 12. Error Handling:
+
+- **Meta API Errors**: Meta-specific errors are processed with `handleMetaError`.
+- **Slack Notification**: Sends an error notification to Slack.
+- **Fallback Error**: Returns a `500` status with the error message.
+
+### Notes:
+
+- Ensure that the `childSystemUserToken` has the required permissions.
+- Validate that `dailyBudget` and `bidAmount` adhere to Meta's guidelines.
+- Media URLs must be publicly accessible.

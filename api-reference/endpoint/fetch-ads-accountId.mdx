@@ -1,0 +1,17 @@
+---
+title: "Fetch Ads - AccountId"
+openapi: "POST /meta-ads/fetch-ads/{adAccountId}"
+---
+
+## Functionality Overview
+
+Fetch ads of a particular ad account which total ad account,active ad count and paused ad count with pagination, search and filter Functionality.
+
+1. Extract `_id` (agentId) from `req.user`, `adAccountId` from `req.params` and `assisatantId`, `limit`,`page`,`nameQuery`,and `selectedOption` from `req.body`.
+
+   - `limit`: number of results per page.
+   - `page`: page number.
+   - `nameQuery`: contains `adName` to be searched.
+   - `selectedOption`: contains space seperated values of `adStatuses` on which ads have to be filtered.
+
+2. Fetch all the ads from DB satisfying the filtering and search criteria mentioned in request parameters and their count, and also get the count of total active ads and total paused ads and send them to user.

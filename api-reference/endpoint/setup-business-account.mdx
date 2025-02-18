@@ -1,0 +1,165 @@
+---
+title: "Setup Business Account"
+openapi: "POST /meta-ads/setup-business-account"
+---
+
+## Functionality Overview
+
+This route does the full Aisensy ads manager setup.
+
+1.  Extract `clientId` from `req.user` or `req.body`, `prospectId` from `req.user`, `assistantId, pageId, timezoneId, vertical, bmName` from `req.body`.
+
+2.  Fetch assistant details from DB with assistantId and filter it with `{fbConnected:true}` condition.
+
+3.  Call the `setupTwoTierAdAccount` method, here is the flow:
+
+    - This function takes these arguments `assistant, assistantId, clientId, vertical, pageId, timezoneId, childBusinessName`
+    - Fetch a `MetaAdsTwoTier` document by using `{userId: assistant.fbUserId}`
+      -- If these is a document present for the `fbUserId` then check if the `assisatantId` from the two tier document matches the `assisatantId` passed to the function. If both are different then throw and error `This FB account is already linked with another project. For more query please contact support`.
+      -- But if both assistantId's are same then fetch the ad account details from the DB using the `assisatantId` and businessId from the two tier account. and return the ad account and two tier account details.
+
+    - Now if there is no two tier account present then, we fetch assistant details from DB if not already present.
+    - Create a new Child Business Manager using this meta api, where `childBusinessName` is `New Ai Aisensy Ads Business Manager`;
+
+    ```sh
+    curl -X POST "https://graph.facebook.com/v22.0/{AISENSY_BM_ID}/owned_businesses?locale=en_US" \
+      -H "Content-Type: application/json" \
+      -d '{
+            "id": "{AISENSY_BM_ID}",
+            "name": "{childBusinessName}",
+            "vertical": "{vertical}",
+            "shared_page_id": "{pageId}",
+            "page_permitted_tasks": ["ADVERTISE", "ANALYZE", "MANAGE"],
+            "timezone_id": "{timezoneId}",
+            "access_token": "{userAccessToken}"
+          }'
+    ```
+
+    - Attach credit line to the child Business manager using this meta api.
+
+    ```sh
+    curl -X POST "https://graph.facebook.com/v22.0/{CREDIT_LINE_ID}/owning_credit_allocation_configs?locale=en_US" \
+      -H "Content-Type: application/json" \
+      -d '{
+            "receiving_business_id": "{childBusinessId}",
+            "access_token": "{SYSTEM_USER_ACCESS_TOKEN}"
+          }'
+
+    ```
+
+    - Get System User token for the child Business created using this api:
+
+    ```sh
+    curl -X POST "https://graph.facebook.com/v22.0/{childBusinessId}/access_token?locale=en_US" \
+      -H "Content-Type: application/json" \
+      -d '{
+            "id": "{childBusinessId}",
+            "app_id": "{AISENSY_APP_ID}",
+            "scope": "ads_management,business_management",
+            "access_token": "{SYSTEM_USER_ACCESS_TOKEN}"
+          }'
+    ```
+
+    - Get funding source id using the System User Token we obtained in previous step and this meta api.
+
+    ```sh
+    curl -X GET "https://graph.facebook.com/v22.0/{childBusinessId}/extendedcredits?fields=id&access_token={childSystemUserToken}&locale=en_US"
+    ```
+
+    - Get System User Id using the System User Token and this meta api.
+
+    ```sh
+    curl -X GET "https://graph.facebook.com/v22.0/{childBusinessId}/system_users?access_token={childSystemUserToken}&locale=en_US"
+    ```
+
+    - Now save all the information about the childBusiness in the `MetaAdsTwoTier` Collection.
+
+    - Now Create an ad account for the childBusiness using this meta api and then also insert the ad account in the `MetaAdAccount` Collection and then also update the ad account id in the corresponding two tier account.
+
+    ```sh
+    curl -X POST "https://graph.facebook.com/v22.0/{childBusinessId}/adaccount?locale=en_US" \
+         -H "Content-Type: application/json" \
+         -d '{
+               "name": "{adAccountName}",
+               "currency": "INR",
+               "timezone_id": "{timezoneId}",
+               "end_advertiser": "{endAdvertiserId}",
+               "media_agency": "{mediaAgency}",
+               "partner": "{partnerId}",
+               "funding_id": "{fundingId}",
+               "access_token": "{childSystemUserToken}",
+               "fields": "{adAccountFields}",
+               "status": "ACTIVE"
+             }'
+    ```
+
+        - Where these are the ad account fields are:
+
+        ```
+        id,name,business,user_tasks,account_status,amount_spent,balance,created_time,currency,is_prepay_account,min_campaign_group_spend_cap,min_daily_budget,timezone_name,age,disable_reason,funding_source,owner
+        ```
+
+    - Assign System User to the ad account created using this meta api
+
+    ```sh
+    curl -X POST "https://graph.facebook.com/v22.0/{adAccountId}/assigned_users?locale=en_US" \
+         -H "Content-Type: application/json" \
+         -d '{
+               "user": "{systemUserId}",
+               "tasks": "MANAGE,ADVERTISE,ANALYZE",
+               "business": "{childBusinessId}",
+               "access_token": "{childSystemUserToken}"
+             }'
+    ```
+
+    - Add Ad Account to invoice grouping using this meta api
+
+    ```sh
+    curl -X POST "https://graph.facebook.com/v22.0/{INVOICE_GROUPING_ID}/ad_accounts?locale=en_US" \
+         -H "Content-Type: application/json" \
+         -d '{
+               "ad_account_id": "{adAccountId}",
+               "access_token": "{SYSTEM_USER_ACCESS_TOKEN}"
+             }'
+    ```
+
+    - Get Instagram backed page Id of fb page.
+
+      - First get the `pageAccessToken` of the fb page using this api.
+
+      ```sh
+      curl -X GET "https://graph.facebook.com/v22.0/{sharedPageId}?access_token={userAccessToken}&fields=access_token&locale=en_US"
+      ```
+
+      - Then using the `pageAccessToken` Instagram page id.
+
+      ```sh
+      curl -X POST "https://graph.facebook.com/v22.0/{sharedPageId}/page_backed_instagram_accounts?access_token={pageAccessToken}&locale=en_US" \
+       -H "Content-Type: application/json" \
+       -d '{}'
+      ```
+
+    - Get `datasetId` for capi.
+
+      - First we fetch the `pageAccessToken` of the page from DB, then call this meta api:
+
+      ```sh
+      curl -X POST "https://graph.facebook.com/v22.0/{pageId}/dataset?access_token={pageAccessToken}"
+      ```
+
+    - Update `INVOICE_GROUPING_ID, shadowInstagramPageId and datasetId` in the corresponding `MetaAdsTwoTier` document.
+    - Now we will update `adSetupDetails.isSetupCompleted` in the assistant to true if the these conditions hold true otherwise we will set it to false.
+
+      - childBusiness should have a `userId` and it should be equal to the `fbUserId` in assistant details.
+      - `fbConnected` in assistant should be true.
+      - the page shared to the childBusiness ad account should have a whatsappNumber.
+
+    - At last the child business ad account details and child business manager details should be returned.
+
+4.  If an error is returned while calling `setupTwoTierAdAccount` function then send the error notification to slack along with error details.
+
+5.  Otherwise extract ad account details and child business details from the response we got from `setupTwoTierAdAccount` and a success notification on slack with all the relevant details.
+
+6.  Send `sendDataToLSQLeadOnEvent` and `sendDataToLSQProductOnEvent`.
+
+7.  Return a response to user containing ad account details.

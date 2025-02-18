@@ -1,0 +1,186 @@
+---
+title: "Export Ad Data"
+openapi: "POST /meta-ads/export-ad-data-new"
+---
+
+## Functionality Overview
+
+This route exports Meta ad data within a specified date range and generates a CSV file for download.
+
+### 1. Extracting Data:
+
+- **Request Body**:
+  - `fromAdStartDate`: Start date for the ad data retrieval.
+  - `toAdStartDate`: End date for the ad data retrieval.
+  - `assistantId`: ID of the assistant.
+  - `timezone`: Timezone for date formatting.
+
+### 2. Input Validation:
+
+- **Date Range Check**:
+  - Ensures the date range does not exceed 3 months.
+- **Timezone Parsing**:
+  - Extracts the base timezone string.
+- **Date Conversion**:
+  - Converts `fromAdStartDate` and `toAdStartDate` to UTC using the provided timezone.
+- **Invalid Date Check**:
+  - Throws an error if the converted dates are invalid.
+
+### 3. Data Retrieval:
+
+- **Function Call**: `getExportAdsData`
+- **Parameters**: `assistantId`, `fromDate`, `toDate`
+- **Process**:
+  - Fetches ad data from the database.
+  - Extracts `adsData` and `currency`.
+
+### 4. `getExportAdsData` Function:
+
+- **Purpose**: Fetches ad data from the database and Meta's API.
+- **Process**:
+
+  - **Step 1**: Validate the assistant using `findOneLeanAssistant`.
+    - Checks if the assistant exists.
+    - Throws an error if no project is found.
+  - **Step 2**: Validate the associated child business using `findOneMetaAdsTwoTier`.
+    - Retrieves the ad account ID.
+    - Throws an error if no ad setup is found.
+  - **Step 3**: Retrieve ad account details using `findOneMetaAdAccount`.
+    - Confirms the existence of the specified ad account.
+  - **Step 4**: Fetch ads data from the database using `findMetaAds`.
+    - Queries ads within the date range with a status other than `NONE`.
+  - **Step 5**: Prepare a map of ad IDs to MongoDB IDs.
+    - Iterates over retrieved ads and maps `adId` to `_id`.
+  - **Step 6**: Retrieve additional ad performance data from Meta's API.
+
+    - Constructs API calls in batches of 50 IDs.
+    - Sends requests to `/ads` endpoint with specified fields.
+    - Merges response data with database records.
+
+    **Meta API Call for Ads Data:**
+
+    ```sh
+    curl -X GET "https://graph.facebook.com/v22.0/${META_BASE_URL}" \
+      -H "Authorization: Bearer <ACCESS_TOKEN>" \
+      -G \
+      --data-urlencode "ids=[<AD_ID_LIST>]" \
+      --data-urlencode "fields=<FIELDS>"
+    ```
+
+  - **Step 7**: Retrieve ad account insights from Meta's API.
+
+    - Fetches account-level insights including `spend` and `currency`.
+
+  - **Step 8**: Calculate derived metrics.
+    - Adjusts metrics for child BM accounts based on commission percentages.
+    - Handles gender mapping and advanced targeting fields.
+  - **Step 9**: Merge insights and update records.
+
+    - Iterates through the retrieved ads to merge with database data.
+    - Updates the `totalMessages` field by calling `getMultipleAdsTotalMessages`.
+
+  - **Explanation of `getMultipleAdsTotalMessages`:**
+
+    - Accepts an `assistantId` and an array of `adIds`.
+    - Uses MongoDB's `aggregate` method to group messages by `adId`.
+    - Sums the `messages` field for each `adId`.
+    - Returns an array of objects containing `adId` and `totalMessages`.
+    - **MongoDB Query**:
+      - `$match`: Filters documents by `assistantId` and `adId`.
+      - `$group`: Groups by `adId` and sums the `messages`.
+
+    **Example Query**:
+
+    ```js
+    MetaAdAnalytics.aggregate([
+      { $match: { assistantId, adId: { $in: adIds } } },
+      { $group: { _id: "$adId", totalMessages: { $sum: "$messages" } } },
+    ]);
+    ```
+
+  - **Step 10**: Return the structured ad data.
+    - Organizes the data into the expected format for CSV export.
+
+**Meta API Calls**:
+
+1. **Fetch Ads Data**
+
+```sh
+curl -X GET "https://graph.facebook.com/v22.0/${META_BASE_URL}" \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
+  -G \
+  --data-urlencode "ids=[<AD_ID_LIST>]" \
+  --data-urlencode "fields=<FIELDS>"
+```
+
+2. **Fetch Account Insights**
+
+```sh
+curl -X GET "https://graph.facebook.com/v22.0/${childBMAdAccountId}" \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
+  -G \
+  --data-urlencode "fields=id,name,currency,insights.fields(spend)"
+```
+
+### 5. Data Parsing:
+
+- **Process**:
+  - Iterates over each ad's data.
+  - Extracts performance metrics like `clicks`, `impressions`, `reach`, and `spend`.
+  - Calculates derived metrics like:
+    - **Cost Per Lead (CPL)**: `spend / leads`
+    - **Click-Through Rate (CTR)**: `(clicks / impressions) * 100`
+  - Formats dates according to the provided timezone.
+  - Handles missing or undefined fields with default values.
+
+### 6. CSV Generation:
+
+- **Headings**:
+  - Defines a set of column headings for the CSV file.
+- **Body Generation**:
+  - Encodes data fields as CSV rows.
+  - Escapes double quotes to prevent formatting issues.
+
+**CSV Headings**:
+
+- `Ad Name`
+- `Gender`
+- `Daily Budget`
+- `Age Group`
+- `Created At`
+- `Ad Start Date`
+- `Ad Stop Date`
+- `Ad Status`
+- `Ad Description`
+- `Headline`
+- `Reach`
+- `Cost Per Lead`
+- `Total Leads Generated`
+- `Click Through Rate`
+- `Total Budget Used`
+- `Cost Per Click`
+- `Impressions`
+- `Clicks`
+- `Unique Clicks`
+- `Total Messages`
+- `Quality Ranking`
+- `Engagement Rate Ranking`
+- `New Messaging Contacts`
+- `Messaging Conversations Started`
+
+### 7. Response:
+
+- **Headers**:
+  - `Content-Disposition`: `attachment; filename=data.csv`
+  - `Content-Type`: `text/csv`
+- **Body**: CSV content representing the exported ad data.
+
+### 8. Error Handling:
+
+- If any error occurs during data retrieval, processing, or CSV generation, the server responds with a `500` status code and the error message.
+
+### Notes:
+
+- Ensure that the date range does not exceed 3 months.
+- Confirm that the timezone string is correctly formatted.
+- Verify that the generated CSV file can be correctly parsed by standard spreadsheet applications.

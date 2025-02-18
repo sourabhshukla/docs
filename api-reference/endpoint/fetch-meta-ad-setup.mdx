@@ -1,0 +1,66 @@
+---
+title: "Fetch Meta Ad Setup"
+openapi: "POST /meta-ads/fetch-meta-ad-setup"
+---
+
+## Functionality Overview
+
+This route retrieves the Meta Ad setup details for a given assistant by validating the access token and checking the setup status.
+
+### 1. Extracting Data:
+
+- **Request Body**: The `assistantId` is extracted from `req.body`.
+
+### 2. Assistant Validation:
+
+- **Check if Assistant Exists**: It retrieves the assistant's data using `findOneLeanAssistant`. If the assistant is not found or not connected to Facebook, an error is thrown.
+- **Required Fields**: The response includes fields like `fbUserToken`, `fbUserId`, `fbConnected`, `adSetupDetails`, and `specialAccess`.
+
+### 3. Fetching Meta Ads Two-Tier Data:
+
+- It uses `findOneMetaAdsTwoTier` to retrieve data about child business managers associated with the assistant.
+- If there is an error or no valid data, an exception is thrown.
+
+### 4. Token Validation:
+
+- The `fbUserToken` is verified using the `getTokenInfo` function.
+- **Granular Scopes Check**: Iterates through `granularScopes` to ensure the token has the required permissions like `pages_show_list`, `pages_manage_metadata`, and `business_management`.
+- **Target IDs Check**: Determines if the token has associated target IDs, indicating permission restrictions.
+- **Explanation of getTokenInfo**:
+  - **URL Construction**: Constructs the URL for the Facebook Graph API to debug the token.
+  - **API Call**: Sends a GET request to the endpoint `/debug_token` with the input token and the system user access token.
+  - **Data Extraction**: Extracts `scopes`, `granular_scopes`, `issued_at`, `is_valid`, and `data_access_expires_at`.
+  - **Error Handling**: If any error occurs, it marks the token as invalid.
+
+**Meta API Call**:
+
+```sh
+curl -X GET "https://graph.facebook.com/debug_token?input_token=<INPUT_TOKEN>&access_token=<SYSTEM_USER_ACCESS_TOKEN>&locale=en_US"
+```
+
+### 5. Setup Completion Check:
+
+- It checks if `fetchedChildBM` exists the `userId` field in it and matches the `fbUserId` field in the assistant data.
+- If the assistant has an associated Meta page with an active status and a valid `whatsappNumber`, the setup is marked as completed.
+
+### 6. Updating Assistant Status:
+
+- The assistant's `fbConnected` status is updated based on the token validity and presence of `fetchedChildBM`.
+- The `adSetupDetails` field is updated to reflect whether the setup is completed.
+
+### 7. Response:
+
+- If the operation is successful, it responds with the following fields:
+  - `pageId`: ID of the shared Meta page.
+  - `adAccountId`: ID of the associated ad account.
+  - `isValid`: Boolean indicating if the access token is valid.
+  - `userId`: The user ID associated with the fetched business manager.
+
+### 8. Error Handling:
+
+- If an exception occurs at any stage, it logs the error and returns a `500` status code with the message "Something went wrong".
+
+### Notes:
+
+- Ensure that the `fbUserToken` has the necessary granular scopes for the operation.
+- The Meta API responses are handled with care to prevent false positives in the `isSetupCompleted` status.

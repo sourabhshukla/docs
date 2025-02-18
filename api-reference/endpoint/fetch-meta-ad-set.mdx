@@ -1,0 +1,50 @@
+---
+title: "Fetch Meta Ad Set"
+openapi: "POST /meta-ads/fetch-meta-ad-set"
+---
+
+## Functionality Overview
+
+This route retrieves the list of Meta Ad Sets for a given assistant and ad campaign.
+
+### 1. Extracting Data:
+
+- **User Information**: The `clientId` is extracted from `req.user` or `req.body`.
+- **Request Body**: The following fields are extracted from `req.body`:
+  - `adCampaignId`: The ID of the ad campaign whose ad sets need to be fetched.
+  - `assistantId`: The ID of the assistant initiating the request.
+
+### 2. Ad Set Retrieval:
+
+- **Database Query**: Invokes the `getMetaAdSet` function to retrieve the ad sets from the database.
+- **Parameters**:
+  - `assistantId`, `clientId`, `adCampaignId`.
+- **Error Handling**: If the database query fails, a `CustomError` with status code `400` is thrown.
+
+### 3. Explanation of `getMetaAdSet`:
+
+- **Function Overview**: This function handles the retrieval of ad sets from the database.
+- **Parameters**:
+  - `assistantId`: ID of the assistant.
+  - `clientId`: ID of the client.
+  - `adCampaignId`: ID of the ad campaign.
+- **Process**:
+  - Calls `MetaAdSet.find(queryObject)` to retrieve matching ad sets from the database.
+  - If successful, returns the ad sets with `null` as the error.
+  - If an error occurs, returns the error with `null` for the data.
+
+### 4. Response:
+
+- If the operation is successful, it responds with:
+  - `success`: Boolean indicating success.
+  - `adSet`: An array of the fetched ad sets.
+
+### 5. Error Handling:
+
+- **Database Errors**: Database-specific errors are caught and returned.
+- **Other Errors**: Errors without a specific code are returned with a `500` status and the corresponding error message.
+
+### Notes:
+
+- Ensure the ad campaign ID is valid and associated with the assistant's business.
+- The ad sets are retrieved directly from the database; no external Meta API call is made.
