@@ -16,58 +16,110 @@ description: "An Introduction to CTWA Ads"
 
 CTWA (Click to WhatsApp) ads in Meta are a type of advertisement designed to drive users from Facebook, Instagram, or Messenger directly to a WhatsApp chat with a business. When users click on the ad, it opens a conversation in WhatsApp, allowing businesses to interact with potential customers in real-time.
 
-## Setting Up CTWA Ads Manager Setup
+# AiSensy CTWA Ads Setup Flow
 
-The first step to world-class documentation is setting up your editing environments.
+## Overview
 
-<CardGroup cols={2}>
-  <Card
-    title="Edit Your Docs"
-    icon="pen-to-square"
-    href="https://mintlify.com/docs/quickstart"
-  >
-    Get your docs set up locally for easy development
-  </Card>
-  <Card
-    title="Preview Changes"
-    icon="image"
-    href="https://mintlify.com/docs/development"
-  >
-    Preview your changes before you push to make sure they're perfect
-  </Card>
-</CardGroup>
+This guide explains the flow required to create Click-to-WhatsApp (CTWA) ads from the AiSensy platform. The process involves obtaining the necessary Facebook permissions, fetching the user’s ad accounts/pages, setting up a dedicated AiSensy Ads business account for user, and verifying the user’s WhatsApp number. Below is a step-by-step walkthrough.
 
-## Make it yours
+## 1. User Logs in With Facebook
 
-Update your docs to your brand and add valuable content for the best user conversion.
+1. **User Grants Permissions**
 
-<CardGroup cols={2}>
-  <Card
-    title="Customize Style"
-    icon="palette"
-    href="https://mintlify.com/docs/settings/global"
-  >
-    Customize your docs to your company's colors and brands
-  </Card>
-  <Card
-    title="Reference APIs"
-    icon="code"
-    href="https://mintlify.com/docs/api-playground/openapi"
-  >
-    Automatically generate endpoints from an OpenAPI spec
-  </Card>
-  <Card
-    title="Add Components"
-    icon="screwdriver-wrench"
-    href="https://mintlify.com/docs/content/components/accordions"
-  >
-    Build interactive features and designs to guide your users
-  </Card>
-  <Card
-    title="Get Inspiration"
-    icon="stars"
-    href="https://mintlify.com/customers"
-  >
-    Check out our showcase of our favorite documentation
-  </Card>
-</CardGroup>
+   - When the user signs in with their Facebook account on AiSensy, the frontend requests specific permissions:
+     - `business_management`
+     - `ads_management`
+     - `ads_read`
+     - `pages_show_list`
+     - `pages_manage_metadata`
+   - Facebook provides a **short-lived access token** upon successful login.
+
+2. **Exchange Short-Lived Token for Long-Lived Token**
+
+   - On your backend, you call the Facebook API to exchange the short-lived token for a **long-lived access token**.
+   - This token is then stored securely in your system for later calls to Facebook’s APIs.
+
+3. **`/meta-ads/fb-connect`**
+   - After the user returns from Facebook’s OAuth flow, you call this endpoint with:
+     - The user’s **assistantId** (identifying the project or assistant in AiSensy)
+     - The **authResponse** (including the `accessToken`, `userID`, and `grantedScopes`)
+     - The connection `status` (e.g., `"connected"`)
+   - On successful connection:
+     - AiSensy associates the user’s long-lived token with the assistant.
+     - It stores the user’s Facebook user ID and relevant permissions.
+
+## 2. Fetching Ad Accounts & Pages
+
+After Facebook is successfully connected:
+
+1. **`/meta-ads/fetch-ad-accounts`**
+
+   - This endpoint retrieves all ad accounts associated with the user’s Facebook Business Manager(s).
+   - You store the relevant ad account details locally.
+
+2. **`/meta-ads/fetch-page`** (or **`/meta-ads/fetch-pages`** if fetching multiple pages)
+   - This endpoint retrieves all Facebook Pages to which the user has granted AiSensy access.
+   - AiSensy stores the pages’ metadata (name, ID, category, etc.) for easy reference.
+
+The user then sees, in AiSensy’s UI, a list of **ad accounts** and **pages** that can be used to create CTWA ads.
+
+## 3. Selecting a Page for CTWA Ads
+
+The user chooses one of the fetched Pages to run CTWA ads on.
+
+1. **`/meta-ads/setup-business-account`**
+
+   - Internally, AiSensy sets up a Aisensy Ads business manager account (if not already created) under AiSensy’s main Business Manager.
+   - A dedicated **ad account** can be created for the user (if needed).
+   - This ensures that the user’s CTWA ads run under a structured sub-business manager that AiSensy controls, allowing advanced features and credits handling.
+
+2. **System Flow**
+   - AiSensy will create or fetch the relevant Aisensy Ads business manager details:
+     - System user token
+     - Business manager ID
+     - Funding source
+   - The user now has a dedicated environment for CTWA ads.
+
+## 4. Linking a WhatsApp Number to the Chosen Page
+
+To use CTWA ads, the user’s Page must have a verified WhatsApp business number:
+
+1. **`/meta-ads/link-whatsapp-number-with-page`**
+   - The user provides their **WhatsApp business number** and a **verification code** (OTP).
+   - AiSensy calls Facebook’s APIs to verify that number for the selected page.
+   - On success, the Page is now fully configured to run CTWA ads.
+
+## 5. CTWA Ads Ready
+
+With the Page properly linked to a verified WhatsApp number and the dedicated ad account set up, the user can now create CTWA ads from within AiSensy’s platform.
+
+### Additional Notes
+
+- **Token Lifespan**: AiSensy uses the **long-lived token** to manage the user’s ad accounts, pages, and to create or manage ads.
+- **Granular Permissions**: The user has the option to “Opt in to all current and future Pages” and “Opt in to all current and future Businesses” during the Facebook login, ensuring AiSensy automatically sees new pages or businesses the user might create in the future.
+- **Monitoring & Management**: AiSensy can further provide analytics, tracking the performance of the user’s CTWA ads by calling additional Graph APIs.
+
+---
+
+### Summary of Endpoints
+
+1. **`/meta-ads/fb-connect`**
+
+   - Authenticates and stores the long-lived token, sets up basic user data.
+
+2. **`/meta-ads/fetch-ad-accounts`**
+
+   - Retrieves the user’s ad accounts from their connected Business Manager(s).
+
+3. **`/meta-ads/fetch-page`** or **`/meta-ads/fetch-pages`**
+
+   - Retrieves the user’s Facebook Pages.
+
+4. **`/meta-ads/setup-business-account`**
+
+   - Creates or fetches a AiSensy Ads business manager and ad account under AiSensy for the user.
+
+5. **`/meta-ads/link-whatsapp-number-with-page`**
+   - Verifies the user’s WhatsApp business number for the selected Page.
+
+Once these steps are completed successfully, the user can begin creating and managing CTWA ads within AiSensy’s platform.
